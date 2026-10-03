@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { afterAll, describe, expect, it } from 'vitest'
 import { createApp } from '../src/app'
 import { AppError, errorHandler } from '../src/lib/errors'
+import { clientIp } from '../src/lib/http'
 import { prisma } from '../src/lib/prisma'
 import { parseBody } from '../src/lib/validate'
 
@@ -64,5 +65,14 @@ describe('validation helpers', () => {
     const res = await app.request('/conflict')
     expect(res.status).toBe(409)
     expect(await res.json()).toEqual({ error: { code: 'CONFLICT', message: 'Already exists', fields: { email: 'Taken' } } })
+  })
+})
+
+describe('clientIp', () => {
+  it('ignores X-Forwarded-For unless SR_TRUST_PROXY is enabled', async () => {
+    const app = new Hono()
+    app.get('/ip', (c) => c.json({ ip: clientIp(c) }))
+    const res = await app.request('/ip', { headers: { 'x-forwarded-for': '6.6.6.6' } })
+    expect(await res.json()).toEqual({ ip: null })
   })
 })

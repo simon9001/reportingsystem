@@ -1,12 +1,20 @@
 import type { Context } from 'hono'
+import { getConnInfo } from '@hono/node-server/conninfo'
 import { createMiddleware } from 'hono/factory'
 import type { AppEnv } from '../types'
 import { env } from './env'
 import { AppError } from './errors'
 
 export function clientIp(c: Context): string | null {
-  const forwarded = c.req.header('x-forwarded-for')
-  return forwarded ? forwarded.split(',')[0]!.trim() : null
+  if (env.SR_TRUST_PROXY) {
+    const forwarded = c.req.header('x-forwarded-for')
+    if (forwarded) return forwarded.split(',')[0]!.trim()
+  }
+  try {
+    return getConnInfo(c).remote.address ?? null
+  } catch {
+    return null
+  }
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])

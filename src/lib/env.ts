@@ -7,6 +7,7 @@ const envSchema = z.object({
   SR_APP_BASE_URL: z.url().default('http://localhost:5173'),
   SR_APP_TIMEZONE: z.string().default(DEFAULT_TIMEZONE),
   SR_COOKIE_SECURE: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  SR_TRUST_PROXY: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   SR_SESSION_HOURS: z.coerce.number().positive().default(12),
   SR_SEED_ADMIN_EMAIL: z.string().optional(),
   SR_SEED_ADMIN_NAME: z.string().default('System Administrator'),
