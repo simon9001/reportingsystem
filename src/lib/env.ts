@@ -1,8 +1,8 @@
 import { DEFAULT_TIMEZONE } from '@sr/shared'
 import { z } from 'zod'
+import { readDbSettings } from './dbConfig'
 
 const envSchema = z.object({
-  SR_DATABASE_URL: z.string().startsWith('sqlserver://', 'SR_DATABASE_URL must be a sqlserver:// connection string'),
   SR_PORT: z.coerce.number().int().positive().default(3000),
   SR_APP_BASE_URL: z.url().default('http://localhost:5173'),
   SR_APP_TIMEZONE: z.string().default(DEFAULT_TIMEZONE).refine((v) => {
@@ -28,3 +28,4 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data
+export const db = readDbSettings()

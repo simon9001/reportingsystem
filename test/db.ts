@@ -3,8 +3,8 @@ import { prisma } from '../src/lib/prisma'
 
 /** Deletes every row. Refuses to touch anything but the test database. */
 export async function resetDb(): Promise<void> {
-  if (!process.env.SR_DATABASE_URL?.includes('database=shiftreporting_test')) {
-    throw new Error('resetDb refused: SR_DATABASE_URL is not the shiftreporting_test database')
+  if (process.env.DB_DATABASE !== 'shiftreporting_test') {
+    throw new Error('resetDb refused: DB_DATABASE is not the shiftreporting_test database')
   }
   loginLimiter.clear()
   await prisma.auditLog.deleteMany()

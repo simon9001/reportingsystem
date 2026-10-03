@@ -4,7 +4,7 @@ import { seedDefaults } from '../src/config/seedDefaults'
 import { prisma } from '../src/lib/prisma'
 import { resetDb } from '../test/db'
 
-await resetDb() // refuses to run unless SR_DATABASE_URL is the shiftreporting_test database
+await resetDb() // refuses to run unless DB_DATABASE is the shiftreporting_test database
 await seedDefaults(prisma)
 await prisma.user.create({
   data: {
