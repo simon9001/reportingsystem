@@ -108,4 +108,44 @@ describe('incident register', () => {
     expect(res.status).toBe(201)
     expect(((await res.json()) as IncidentDto).shiftId).toBe(world.older.id)
   })
+
+  describe('edit permissions', () => {
+    const patch = (cookie: string, id: number, overrides: Record<string, unknown> = {}) =>
+      call(app, 'PATCH', `/api/incidents/${id}`, { cookie, body: incidentBody(world, overrides) })
+    const create = async (cookie: string, overrides: Record<string, unknown> = {}) =>
+      (await (await call(app, 'POST', '/api/incidents', { cookie, body: incidentBody(world, overrides) })).json()) as IncidentDto
+
+    it('refuses PATCH from an officer not on the shift and from the Deputy Director', async () => {
+      const created = await create(supCookie)
+      expect((await patch(await login(app, world.otherOfficer.email), created.id)).status).toBe(403)
+      const dd = await loginAs(app, 'DEPUTY_DIRECTOR')
+      expect((await patch(dd.cookie, created.id)).status).toBe(403)
+    })
+
+    it('refuses PATCH on older shifts for the supervisor, allows it for an admin', async () => {
+      const admin = await loginAs(app, 'ADMIN')
+      const old = await create(admin.cookie, { occurredAt: ago(20 * HOUR) })
+      expect((await patch(supCookie, old.id, { occurredAt: old.occurredAt })).status).toBe(403)
+      const res = await patch(admin.cookie, old.id, { occurredAt: old.occurredAt, severity: 'LOW' })
+      expect(res.status).toBe(200)
+    })
+
+    it('refuses moving an incident into an older shift', async () => {
+      const created = await create(supCookie)
+      expect((await patch(supCookie, created.id, { occurredAt: ago(20 * HOUR) })).status).toBe(403)
+    })
+
+    it('shows canEdit on the previous shift for its rostered supervisor', async () => {
+      const prev = await create(supCookie, { occurredAt: ago(5 * HOUR) })
+      const got = (await (await call(app, 'GET', `/api/incidents/${prev.id}`, { cookie: supCookie })).json()) as IncidentDto
+      expect(got.canEdit).toBe(true)
+    })
+
+    it('gates read-only roles before validation and bounds ids', async () => {
+      const dd = await loginAs(app, 'DEPUTY_DIRECTOR')
+      const res = await call(app, 'POST', '/api/incidents', { cookie: dd.cookie, body: incidentBody(world, { occurredAt: new Date(Date.now() + HOUR).toISOString() }) })
+      expect(res.status).toBe(403)
+      expect((await call(app, 'GET', '/api/incidents/99999999999', { cookie: dd.cookie })).status).toBe(404)
+    })
+  })
 })

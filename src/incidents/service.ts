@@ -12,6 +12,12 @@ import { nextIncidentRef } from './sequence'
 
 export const NO_ROSTER_MESSAGE = 'No roster for the shift at that time — ask the Deputy Director or an administrator to add it'
 const CLOCK_TOLERANCE_MS = 5 * 60_000
+const MAX_INT = 2147483647
+
+/** Roles that can never edit incidents are rejected before any validation so they learn nothing about roster coverage. */
+function assertEditorRole(actor: SessionUser) {
+  if (actor.role !== 'OFFICER' && actor.role !== 'ADMIN') throw new AppError('FORBIDDEN', 'You do not have permission to log or edit incidents')
+}
 
 const timeFmt = () => new Intl.DateTimeFormat('en-GB', { timeZone: env.SR_APP_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false })
 const fmtTime = (isoValue: string) => timeFmt().format(new Date(isoValue))
@@ -108,13 +114,16 @@ async function loadDetail(where: { id: number } | { ref: string }): Promise<Inci
 }
 
 export async function getIncident(idOrRef: string, actor: SessionUser, now = new Date()): Promise<IncidentDto> {
-  const row = await loadDetail(/^\d+$/.test(idOrRef) ? { id: Number(idOrRef) } : { ref: idOrRef.toUpperCase() })
+  const numeric = /^\d+$/.test(idOrRef)
+  if (numeric && Number(idOrRef) > MAX_INT) throw new AppError('NOT_FOUND', 'Incident not found')
+  const row = await loadDetail(numeric ? { id: Number(idOrRef) } : { ref: idOrRef.toUpperCase() })
   if (!row) throw new AppError('NOT_FOUND', 'Incident not found')
   const canEdit = canEditIncident(actor, row.shift, await editableShiftIds(now))
   return toIncidentDto(row, { canEdit, actor, timeZone: env.SR_APP_TIMEZONE })
 }
 
 export async function createIncident(actor: SessionUser, input: IncidentInputParsed, ip: string | null, now = new Date()): Promise<IncidentDto> {
+  assertEditorRole(actor)
   const occurredAt = new Date(input.occurredAt)
   assertNotFuture(occurredAt, now)
   const shift = await resolveShiftFor(occurredAt)
@@ -140,6 +149,7 @@ export async function createIncident(actor: SessionUser, input: IncidentInputPar
 }
 
 export async function updateIncident(actor: SessionUser, id: number, input: IncidentInputParsed, ip: string | null, now = new Date()): Promise<IncidentDto> {
+  assertEditorRole(actor)
   const existing = await loadDetail({ id })
   if (!existing) throw new AppError('NOT_FOUND', 'Incident not found')
   const editable = await editableShiftIds(now)

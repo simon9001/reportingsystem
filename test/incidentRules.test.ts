@@ -60,6 +60,12 @@ describe('buildUpdateEvents', () => {
     expect(buildUpdateEvents(before, { ...before, status: 'IN_PROGRESS' }, fmt)).toEqual([{ kind: 'STATUS_CHANGED', summary: 'Status changed from Open to In progress' }])
     expect(buildUpdateEvents(before, { ...before }, fmt)).toEqual([])
   })
+
+  it('records when an escalation is removed', () => {
+    const escalated = { ...before, escalatedTo: 'ICT Officer', escalatedAt: '2026-09-28T22:30:00.000Z' }
+    const events = buildUpdateEvents(escalated, { ...escalated, escalatedTo: null, escalatedAt: null }, fmt)
+    expect(events).toContainEqual({ kind: 'UPDATED', summary: 'Escalation removed' })
+  })
 })
 
 describe('formatIncidentRef', () => {

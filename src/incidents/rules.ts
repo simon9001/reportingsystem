@@ -88,6 +88,7 @@ export function buildUpdateEvents(
   if (after.escalatedTo && (after.escalatedTo !== before.escalatedTo || after.escalatedAt !== before.escalatedAt)) {
     events.push({ kind: 'ESCALATED', summary: escalationSummary(after.escalatedTo, after.escalatedAt, fmtTime) })
   }
+  if (before.escalatedTo && !after.escalatedTo) events.push({ kind: 'UPDATED', summary: 'Escalation removed' })
   const changed = (Object.keys(FIELD_LABELS) as (keyof IncidentSnapshot)[]).filter((k) => !handled.has(k) && before[k] !== after[k])
   if (changed.length > 0) events.push({ kind: 'UPDATED', summary: truncate(`Updated ${changed.map((k) => FIELD_LABELS[k]).join(', ')}`, 300) })
   return events
