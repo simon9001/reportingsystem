@@ -28,9 +28,12 @@ authRoutes.post('/login', async (c) => {
   }
   loginLimiter.reset(email)
   const ip = clientIp(c)
-  const { token } = await createSession(user.id, { ip, userAgent: c.req.header('user-agent') ?? null })
-  const updated = await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
-  await writeAudit(prisma, { userId: user.id, entity: 'User', entityId: user.id, action: 'LOGIN', ip })
+  const { token, updated } = await prisma.$transaction(async (tx) => {
+    const session = await createSession(user.id, { ip, userAgent: c.req.header('user-agent') ?? null }, tx)
+    const u = await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+    await writeAudit(tx, { userId: user.id, entity: 'User', entityId: user.id, action: 'LOGIN', ip })
+    return { token: session.token, updated: u }
+  })
   setSessionCookie(c, token)
   return c.json({ user: toSessionUser(updated) })
 })

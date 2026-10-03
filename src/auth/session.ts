@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import type { Context } from 'hono'
 import { deleteCookie, setCookie } from 'hono/cookie'
 import { env } from '../lib/env'
-import { prisma } from '../lib/prisma'
+import { prisma, type Db } from '../lib/prisma'
 import type { SessionUser } from '../types'
 import { toSessionUser } from '../users/mappers'
 
@@ -10,10 +10,10 @@ export const SESSION_COOKIE = 'sr_session'
 const ttlMs = () => env.SR_SESSION_HOURS * 3_600_000
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex')
 
-export async function createSession(userId: number, meta: { ip: string | null; userAgent: string | null }) {
+export async function createSession(userId: number, meta: { ip: string | null; userAgent: string | null }, db: Db = prisma) {
   const token = randomBytes(32).toString('base64url')
   const expiresAt = new Date(Date.now() + ttlMs())
-  await prisma.session.create({
+  await db.session.create({
     data: { id: hashToken(token), userId, expiresAt, ip: meta.ip, userAgent: meta.userAgent?.slice(0, 300) ?? null },
   })
   return { token, expiresAt }
