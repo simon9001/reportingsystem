@@ -4,6 +4,7 @@ import { writeAudit } from '../audit/audit'
 import { AppError } from '../lib/errors'
 import { clientIp } from '../lib/http'
 import { prisma } from '../lib/prisma'
+import { getCurrentShift } from '../roster/service'
 import { parseBody } from '../lib/validate'
 import type { AppEnv } from '../types'
 import { toSessionUser } from '../users/mappers'
@@ -44,7 +45,8 @@ authRoutes.post('/logout', requireAuth({ allowPasswordChange: true }), async (c)
 })
 
 authRoutes.get('/me', requireAuth({ allowPasswordChange: true }), async (c) => {
-  const body: MeResponse = { user: currentUser(c), currentShift: null }
+  const user = currentUser(c)
+  const body: MeResponse = { user, currentShift: await getCurrentShift(user.id) }
   return c.json(body)
 })
 

@@ -5,6 +5,7 @@ import { authRoutes } from './auth/routes'
 import { configRoutes } from './config/routes'
 import { errorHandler } from './lib/errors'
 import { originCheck } from './lib/http'
+import { rosterRoutes } from './roster/routes'
 import type { AppEnv } from './types'
 import { usersRoutes } from './users/routes'
 
@@ -21,6 +22,7 @@ export function createApp() {
   api.route('/auth', authRoutes)
   api.route('/users', usersRoutes)
   api.route('/config', configRoutes)
+  api.route('/roster', rosterRoutes)
 
   app.route('/api', api)
   return app
