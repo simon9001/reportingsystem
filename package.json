@@ -9,6 +9,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
     "db:test:deploy": "cross-env SR_ENV_FILE=.env.test prisma migrate deploy",
     "pretest": "prisma generate && pnpm db:test:deploy",
     "test": "vitest run"

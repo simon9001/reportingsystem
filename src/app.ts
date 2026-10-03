@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { requestId } from 'hono/request-id'
 import { sessionMiddleware } from './auth/middleware'
 import { authRoutes } from './auth/routes'
+import { configRoutes } from './config/routes'
 import { errorHandler } from './lib/errors'
 import { originCheck } from './lib/http'
 import type { AppEnv } from './types'
@@ -19,6 +20,7 @@ export function createApp() {
   api.get('/health', (c) => c.json({ ok: true }))
   api.route('/auth', authRoutes)
   api.route('/users', usersRoutes)
+  api.route('/config', configRoutes)
 
   app.route('/api', api)
   return app
