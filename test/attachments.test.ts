@@ -3,6 +3,8 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../src/app'
 import { prisma } from '../src/lib/prisma'
 import { resetDb } from './db'
+import { assertCanUpload } from '../src/attachments/service'
+import type { SessionUser } from '../src/types'
 import { call, login, loginAs } from './factories'
 import { incidentBody, setupIncidentWorld } from './incidentFixtures'
 
@@ -58,6 +60,24 @@ describe('incident snapshots', () => {
     expect(body.error.fields['virus.png']).toMatch(/JPEG, PNG, WebP or PDF/)
     expect(body.error.fields['huge.png']).toMatch(/10 MB/)
     expect(await prisma.incidentAttachment.count()).toBe(0)
+  })
+
+  it('reports a file named __proto__ and rejects a request with no valid file', async () => {
+    const res = await upload(incident.id, cookie, [{ name: '__proto__', data: Buffer.from('not an image') }])
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: { fields: Record<string, string> } }
+    expect(Object.getOwnPropertyNames(body.error.fields)).toContain('__proto__')
+  })
+
+  it('checks permission before reading the body, and serves PDFs sandboxed', async () => {
+    const dd = await loginAs(app, 'DEPUTY_DIRECTOR')
+    await expect(assertCanUpload({ id: dd.user.id, role: 'DEPUTY_DIRECTOR' } as unknown as SessionUser, incident.id)).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    await expect(assertCanUpload({ id: dd.user.id, role: 'DEPUTY_DIRECTOR' } as unknown as SessionUser, 999999)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    const big = Buffer.concat([PNG, Buffer.alloc(2 * 1024 * 1024)])
+    expect((await upload(incident.id, dd.cookie, [{ name: 'big.png', data: big }])).status).toBe(403)
+    const { attachments } = (await (await upload(incident.id, cookie, [{ name: 'r.pdf', data: PDF }])).json()) as UploadResultDto
+    const pdf = await call(app, 'GET', attachments[0]!.url, { cookie })
+    expect(pdf.headers.get('content-security-policy')).toBe("sandbox; default-src 'none'")
   })
 
   it('limits snapshots to 10 per incident', async () => {

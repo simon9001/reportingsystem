@@ -1,7 +1,7 @@
 import { incidentInputSchema } from '@sr/shared'
 import { Hono } from 'hono'
 import { currentUser, requireAuth } from '../auth/middleware'
-import { uploadAttachments } from '../attachments/service'
+import { assertCanUpload, uploadAttachments } from '../attachments/service'
 import { AppError } from '../lib/errors'
 import { clientIp } from '../lib/http'
 import { parseBody, parseId } from '../lib/validate'
@@ -25,6 +25,7 @@ incidentsRoutes.patch('/:id', requireAuth(), async (c) => {
 
 incidentsRoutes.post('/:id/attachments', requireAuth(), async (c) => {
   const id = parseId(c)
+  await assertCanUpload(currentUser(c), id)
   const body = await c.req.parseBody({ all: true })
   const raw = body['files']
   const files = (Array.isArray(raw) ? raw : raw === undefined ? [] : [raw]).filter((f): f is File => f instanceof File)

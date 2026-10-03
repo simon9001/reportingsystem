@@ -14,6 +14,7 @@ attachmentsRoutes.get('/:id', requireAuth(), async (c) => {
     'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
     'X-Content-Type-Options': 'nosniff',
     'Cache-Control': 'private, max-age=3600',
+    ...(file.mimeType === 'application/pdf' ? { 'Content-Security-Policy': "sandbox; default-src 'none'" } : {}),
   })
 })
 

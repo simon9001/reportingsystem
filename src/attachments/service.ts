@@ -8,6 +8,13 @@ import { editableShiftIds, getIncident } from '../incidents/service'
 import type { SessionUser } from '../types'
 import { detectAllowedType, readStoredFile, removeStoredFile, saveFile } from './storage'
 
+/** Cheap permission check, run before the request body is read. */
+export async function assertCanUpload(actor: SessionUser, incidentId: number): Promise<void> {
+  const incident = await prisma.incident.findUnique({ where: { id: incidentId }, include: { shift: true } })
+  if (!incident) throw new AppError('NOT_FOUND', 'Incident not found')
+  if (!canEditIncident(actor, incident.shift, await editableShiftIds())) throw new AppError('FORBIDDEN', 'You cannot add snapshots to this incident')
+}
+
 export async function uploadAttachments(actor: SessionUser, incidentId: number, files: File[], ip: string | null): Promise<UploadResultDto> {
   const incident = await prisma.incident.findUnique({ where: { id: incidentId }, include: { shift: true, _count: { select: { attachments: true } } } })
   if (!incident) throw new AppError('NOT_FOUND', 'Incident not found')
@@ -19,7 +26,7 @@ export async function uploadAttachments(actor: SessionUser, incidentId: number, 
   }
 
   // Validate every file first so nothing is stored when any file is rejected.
-  const fields: Record<string, string> = {}
+  const fields: Record<string, string> = Object.create(null)
   const accepted: { file: File; buf: Buffer; mime: string; ext: string }[] = []
   for (const file of files) {
     if (file.size > MAX_ATTACHMENT_BYTES) {
@@ -34,7 +41,8 @@ export async function uploadAttachments(actor: SessionUser, incidentId: number, 
     }
     accepted.push({ file, buf, ...type })
   }
-  if (Object.keys(fields).length > 0) throw new AppError('VALIDATION_ERROR', 'Some files were not accepted', fields)
+  if (Object.keys(fields).length > 0) throw new AppError('VALIDATION_ERROR', 'Some files were not accepted', { ...fields })
+  if (accepted.length === 0) throw new AppError('VALIDATION_ERROR', 'Choose at least one file', { files: 'Choose at least one file' })
 
   const stored: string[] = []
   try {
