@@ -5,6 +5,8 @@ import { createApp } from '../src/app'
 import { prisma } from '../src/lib/prisma'
 import { resetDb } from './db'
 import { call, loginAs } from './factories'
+import { buildIncidentWorkbook, safeText } from '../src/incidents/export'
+import { incidentQuerySchema } from '@sr/shared'
 import { insertIncident, resetIncidentSeq, setupIncidentWorld } from './incidentFixtures'
 
 const app = createApp()
@@ -65,5 +67,30 @@ describe('incident explorer', () => {
     expect(ws.rowCount).toBe(3) // header + 2
     const officer = await loginAs(app, 'OFFICER')
     expect((await call(app, 'GET', '/api/incidents/export.xlsx', { cookie: officer.cookie })).status).toBe(403)
+  })
+  it('adds an About sheet to the export', async () => {
+    const res = await call(app, 'GET', '/api/incidents/export.xlsx?from=2026-08-30&to=2026-08-30', { cookie })
+    expect(res.headers.get('x-export-truncated')).toBeNull()
+    const wb = new ExcelJS.Workbook()
+    await wb.xlsx.load(await res.arrayBuffer())
+    const about = wb.getWorksheet('About')!
+    expect(String(about.getRow(2).getCell(1).value)).toContain('from 2026-08-30')
+    expect(String(about.getRow(3).getCell(1).value)).toBe('Rows: 2')
+  })
+
+  it('flags truncated exports', async () => {
+    const { buffer, truncated } = await buildIncidentWorkbook(incidentQuerySchema.parse({}), 1)
+    expect(truncated).toBe(true)
+    const wb = new ExcelJS.Workbook()
+    await wb.xlsx.load(buffer as unknown as ArrayBuffer)
+    expect(wb.getWorksheet('Incidents')!.rowCount).toBe(2)
+    expect(String(wb.getWorksheet('About')!.getRow(4).getCell(1).value)).toContain('Only the first 1 matching')
+  })
+
+  it('neutralises spreadsheet formulas', () => {
+    expect(safeText('=HYPERLINK("x")')).toBe("'=HYPERLINK(\"x\")")
+    expect(safeText('-1+1')).toBe("'-1+1")
+    expect(safeText('Camera')).toBe('Camera')
+    expect(safeText(null)).toBeNull()
   })
 })
