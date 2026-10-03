@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { requestId } from 'hono/request-id'
 import { sessionMiddleware } from './auth/middleware'
 import { authRoutes } from './auth/routes'
+import { auditRoutes } from './audit/routes'
 import { configRoutes } from './config/routes'
 import { errorHandler } from './lib/errors'
 import { originCheck } from './lib/http'
@@ -23,6 +24,7 @@ export function createApp() {
   api.route('/users', usersRoutes)
   api.route('/config', configRoutes)
   api.route('/roster', rosterRoutes)
+  api.route('/audit', auditRoutes)
 
   app.route('/api', api)
   return app
