@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { requestId } from 'hono/request-id'
+import { analyticsRoutes } from './analytics/routes'
 import { attachmentsRoutes } from './attachments/routes'
 import { sessionMiddleware } from './auth/middleware'
 import { authRoutes } from './auth/routes'
@@ -42,6 +43,7 @@ export function createApp() {
   api.route('/incidents', incidentsRoutes)
   api.route('/events', eventsRoutes)
   api.route('/attachments', attachmentsRoutes)
+  api.route('/analytics', analyticsRoutes)
 
   app.route('/api', api)
   return app
