@@ -26,28 +26,37 @@ eventsRoutes.get('/', requireAuth({ allowPasswordChange: true }), (c) => {
 
     const sessionStillValid = async () => {
       if (!sessionId) return false
-      const s = await prisma.session.findUnique({ where: { id: sessionId }, select: { expiresAt: true } })
-      return !!s && s.expiresAt > new Date()
+      try {
+        const s = await prisma.session.findUnique({ where: { id: sessionId }, select: { expiresAt: true } })
+        return !!s && s.expiresAt > new Date()
+      } catch {
+        return false // cannot confirm the session: end the stream, the client reconnects
+      }
     }
 
-    await stream.writeSSE({ event: 'ready', data: '{}' })
-    while (!stream.aborted) {
-      if (pending.length === 0) {
-        await new Promise<void>((resolve) => {
-          wake = resolve
-          setTimeout(resolve, HEARTBEAT_MS)
-        })
-        wake = null
+    try {
+      await stream.writeSSE({ event: 'ready', data: '{}' })
+      while (!stream.aborted) {
+        if (pending.length === 0) {
+          let timer: ReturnType<typeof setTimeout> | undefined
+          await new Promise<void>((resolve) => {
+            wake = resolve
+            timer = setTimeout(resolve, HEARTBEAT_MS)
+          })
+          clearTimeout(timer)
+          wake = null
+        }
+        if (stream.aborted) break
+        if (!(await sessionStillValid())) break // signed out, expired or deactivated: end the stream
+        if (pending.length > 0) {
+          const topics = [...new Set(pending.splice(0))]
+          await stream.writeSSE({ event: 'change', data: JSON.stringify({ topics }) })
+        } else {
+          await stream.write(': ping\n\n')
+        }
       }
-      if (stream.aborted) break
-      if (pending.length > 0) {
-        const topics = [...new Set(pending.splice(0))]
-        await stream.writeSSE({ event: 'change', data: JSON.stringify({ topics }) })
-      } else {
-        if (!(await sessionStillValid())) break // signed out or expired: end the stream
-        await stream.write(': ping\n\n')
-      }
+    } finally {
+      unsubscribe()
     }
-    unsubscribe()
   })
 })

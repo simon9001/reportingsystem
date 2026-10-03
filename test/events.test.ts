@@ -50,6 +50,23 @@ describe('live updates', () => {
     await reader.cancel()
   })
 
+  it('ends the stream without sending changes once the session is gone', async () => {
+    const { cookie } = await loginAs(app, 'DEPUTY_DIRECTOR')
+    const res = await call(app, 'GET', '/api/events', { cookie })
+    const reader = res.body!.getReader()
+    await readUntil(reader, 'event: ready')
+    await prisma.session.deleteMany()
+    publish('incidents')
+    const decoder = new TextDecoder()
+    let text = ''
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      text += decoder.decode(value, { stream: true })
+    }
+    expect(text).not.toContain('event: change')
+  })
+
   it('rejects anonymous clients', async () => {
     expect((await call(app, 'GET', '/api/events')).status).toBe(401)
   })
