@@ -148,4 +148,27 @@ describe('roster', () => {
     expect(asDd.currentShift?.shift?.supervisor.fullName).toBe('Antony Ochieng')
     expect(asDd.currentShift?.myRole).toBeNull()
   })
+
+  it('resolves the current shift from the stored window even when definitions say otherwise', async () => {
+    const { antony, simon } = await setup()
+    const day = (await prisma.shiftDefinition.findFirst({ where: { code: 'DAY' } }))!
+    const now = new Date()
+    const stored = await prisma.shift.create({
+      data: {
+        shiftDate: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())),
+        shiftDefinitionId: day.id,
+        startsAt: new Date(now.getTime() - 3600_000),
+        endsAt: new Date(now.getTime() + 3600_000),
+        supervisorId: antony.id,
+        officerId: simon.id,
+      },
+    })
+    // Definitions are changed so that they would resolve "now" to a different slot (or none).
+    await prisma.shiftDefinition.updateMany({ where: { code: 'DAY' }, data: { startTime: '00:00', endTime: '00:01' } })
+    await prisma.shiftDefinition.updateMany({ where: { code: 'NIGHT' }, data: { startTime: '00:01', endTime: '00:02' } })
+    const res = await call(app, 'GET', '/api/auth/me', { cookie: await login(app, antony.email) })
+    const me = (await res.json()) as MeResponse
+    expect(me.currentShift?.shift?.id).toBe(stored.id)
+    expect(me.currentShift?.myRole).toBe('SUPERVISOR')
+  })
 })

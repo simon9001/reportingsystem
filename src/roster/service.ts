@@ -11,7 +11,7 @@ import { resolveShift, shiftWindow } from '../lib/shiftTime'
 import type { SessionUser } from '../types'
 
 const include = { definition: true, supervisor: true, officer: true } as const
-type ShiftWithPeople = Prisma.ShiftGetPayload<{ include: typeof include }>
+export type ShiftWithPeople = Prisma.ShiftGetPayload<{ include: typeof include }>
 
 export function toShiftDto(s: ShiftWithPeople): ShiftDto {
   return {
@@ -146,24 +146,45 @@ export async function copyWeek(
   return { created, skipped }
 }
 
+/** The stored shift whose window contains `instant`, if any (windows are frozen when the shift is created). */
+export async function findShiftAt(instant: Date, db: Db = prisma): Promise<ShiftWithPeople | null> {
+  return db.shift.findFirst({
+    where: { startsAt: { lte: instant }, endsAt: { gt: instant } },
+    include,
+    orderBy: { startsAt: 'desc' },
+  })
+}
+
 /** The shift happening at `now`, whether or not anyone is rostered, and the user's role on it. */
 export async function getCurrentShift(userId: number | null, now = new Date()): Promise<CurrentShiftDto | null> {
+  const row = await findShiftAt(now)
+  if (row) {
+    const rosterable = (u: { isActive: boolean; role: string }) => u.isActive && u.role === 'OFFICER'
+    const myRole =
+      userId === null ? null
+        : row.supervisor.id === userId && rosterable(row.supervisor) ? 'SUPERVISOR'
+        : row.officer.id === userId && rosterable(row.officer) ? 'OFFICER'
+        : null
+    return {
+      shiftDate: toDateString(row.shiftDate),
+      shiftCode: row.definition.code,
+      shiftName: row.definition.name,
+      startsAt: row.startsAt.toISOString(),
+      endsAt: row.endsAt.toISOString(),
+      shift: toShiftDto(row),
+      myRole,
+    }
+  }
   const defs = await prisma.shiftDefinition.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } })
   const resolved = resolveShift(now, defs, env.SR_APP_TIMEZONE)
   if (!resolved) return null
-  const row = await prisma.shift.findUnique({
-    where: { shiftDate_shiftDefinitionId: { shiftDate: fromDateString(resolved.shiftDate), shiftDefinitionId: resolved.definition.id } },
-    include,
-  })
-  const shift = row ? toShiftDto(row) : null
-  const myRole = !shift || userId === null ? null : shift.supervisor.id === userId ? 'SUPERVISOR' : shift.officer.id === userId ? 'OFFICER' : null
   return {
     shiftDate: resolved.shiftDate,
     shiftCode: resolved.definition.code,
     shiftName: resolved.definition.name,
-    startsAt: (row?.startsAt ?? resolved.startsAt).toISOString(),
-    endsAt: (row?.endsAt ?? resolved.endsAt).toISOString(),
-    shift,
-    myRole,
+    startsAt: resolved.startsAt.toISOString(),
+    endsAt: resolved.endsAt.toISOString(),
+    shift: null,
+    myRole: null,
   }
 }
