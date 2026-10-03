@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlserver"
+}
+
+/// role: ADMIN | DEPUTY_DIRECTOR | OFFICER (validated by @sr/shared)
+model User {
+  id                 Int        @id @default(autoincrement())
+  fullName           String     @db.NVarChar(120)
+  email              String     @unique @db.NVarChar(200)
+  passwordHash       String     @db.NVarChar(200)
+  role               String     @db.NVarChar(20)
+  isActive           Boolean    @default(true)
+  mustChangePassword Boolean    @default(true)
+  lastLoginAt        DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  sessions           Session[]
+  supervisedShifts   Shift[]    @relation("ShiftSupervisor")
+  officerShifts      Shift[]    @relation("ShiftOfficer")
+  auditLogs          AuditLog[]
+}
+
+/// id is the SHA-256 hex of the cookie token; the raw token is never stored.
+model Session {
+  id        String   @id @db.NVarChar(64)
+  userId    Int
+  expiresAt DateTime
+  ip        String?  @db.NVarChar(64)
+  userAgent String?  @db.NVarChar(300)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// startTime / endTime are "HH:mm" in the business time zone. endTime <= startTime means the shift crosses midnight.
+model ShiftDefinition {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique @db.NVarChar(20)
+  name      String   @db.NVarChar(50)
+  startTime String   @db.NVarChar(5)
+  endTime   String   @db.NVarChar(5)
+  sortOrder Int
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  shifts    Shift[]
+}
+
+model EscalationRule {
+  id            Int      @id @default(autoincrement())
+  severity      String   @unique @db.NVarChar(20)
+  isRequired    Boolean
+  notifyWho     String?  @db.NVarChar(200)
+  withinMinutes Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// value is JSON text.
+model SystemSetting {
+  key       String   @id @db.NVarChar(100)
+  value     String   @db.NVarChar(1000)
+  updatedAt DateTime @updatedAt
+}
+
+/// listType: CATEGORY | SYSTEM | TEAM | PLATFORM | LOCATION
+model LookupItem {
+  id        Int      @id @default(autoincrement())
+  listType  String   @db.NVarChar(20)
+  value     String   @db.NVarChar(100)
+  sortOrder Int
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([listType, value])
+}
+
+model Vehicle {
+  id          Int      @id @default(autoincrement())
+  unitId      String   @unique @db.NVarChar(50)
+  description String?  @db.NVarChar(200)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// One roster row per date + shift. startsAt/endsAt are fixed when the row is created.
+model Shift {
+  id                Int             @id @default(autoincrement())
+  shiftDate         DateTime        @db.Date
+  shiftDefinitionId Int
+  startsAt          DateTime
+  endsAt            DateTime
+  supervisorId      Int
+  officerId         Int
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  definition        ShiftDefinition @relation(fields: [shiftDefinitionId], references: [id])
+  supervisor        User            @relation("ShiftSupervisor", fields: [supervisorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  officer           User            @relation("ShiftOfficer", fields: [officerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([shiftDate, shiftDefinitionId])
+  @@index([startsAt, endsAt])
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int?
+  entity     String   @db.NVarChar(50)
+  entityId   String?  @db.NVarChar(50)
+  action     String   @db.NVarChar(20)
+  beforeJson String?  @db.NVarChar(Max)
+  afterJson  String?  @db.NVarChar(Max)
+  ip         String?  @db.NVarChar(64)
+  at         DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([entity, entityId])
+  @@index([at])
+}

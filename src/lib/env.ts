@@ -1,0 +1,22 @@
+import { DEFAULT_TIMEZONE } from '@sr/shared'
+import { z } from 'zod'
+
+const envSchema = z.object({
+  SR_DATABASE_URL: z.string().startsWith('sqlserver://', 'SR_DATABASE_URL must be a sqlserver:// connection string'),
+  SR_PORT: z.coerce.number().int().positive().default(3000),
+  SR_APP_BASE_URL: z.url().default('http://localhost:5173'),
+  SR_APP_TIMEZONE: z.string().default(DEFAULT_TIMEZONE),
+  SR_COOKIE_SECURE: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  SR_SESSION_HOURS: z.coerce.number().positive().default(12),
+  SR_SEED_ADMIN_EMAIL: z.string().optional(),
+  SR_SEED_ADMIN_NAME: z.string().default('System Administrator'),
+  SR_SEED_ADMIN_PASSWORD: z.string().min(10, 'SR_SEED_ADMIN_PASSWORD must be at least 10 characters').optional(),
+})
+
+const parsed = envSchema.safeParse(process.env)
+if (!parsed.success) {
+  console.error('Invalid environment configuration:\n' + z.prettifyError(parsed.error))
+  throw new Error('Invalid environment configuration')
+}
+
+export const env = parsed.data
