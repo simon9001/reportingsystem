@@ -19,6 +19,7 @@ export const DEFAULT_LOOKUPS: Partial<Record<LookupType, string[]>> = {
   SYSTEM: ['CCTV / Cameras', 'NVR / Frigate', 'Server', 'Network / Internet', 'MettaX', 'Tracksolid', 'UPS / Power', 'Control Room PCs / Displays'],
   TEAM: ['ICT', 'Control Room', 'Security', 'Maintenance', 'Management', 'Other'],
   PLATFORM: ['MettaX', 'Tracksolid', 'Other'],
+  LOCATION: ['Isinya W.B', 'Weighbridge 02', 'Weighbridge 04', 'Mombasa Road', 'Server room', 'Main gate'],
 }
 
 /** Safe to run repeatedly: creates missing rows only, never overwrites. */

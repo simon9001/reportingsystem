@@ -23,6 +23,11 @@ model User {
   supervisedShifts   Shift[]    @relation("ShiftSupervisor")
   officerShifts      Shift[]    @relation("ShiftOfficer")
   auditLogs          AuditLog[]
+  incidentsReported   Incident[]           @relation("IncidentReportedBy")
+  incidentsCreated    Incident[]           @relation("IncidentCreatedBy")
+  incidentsUpdated    Incident[]           @relation("IncidentUpdatedBy")
+  attachmentsUploaded IncidentAttachment[] @relation("AttachmentUploadedBy")
+  incidentEvents      IncidentEvent[]      @relation("IncidentEventUser")
 }
 
 /// id is the SHA-256 hex of the cookie token; the raw token is never stored.
@@ -78,6 +83,8 @@ model LookupItem {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  incidentsAtLocation Incident[] @relation("IncidentLocation")
+  incidentsInCategory Incident[] @relation("IncidentCategory")
 
   @@unique([listType, value])
 }
@@ -105,6 +112,7 @@ model Shift {
   definition        ShiftDefinition @relation(fields: [shiftDefinitionId], references: [id])
   supervisor        User            @relation("ShiftSupervisor", fields: [supervisorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   officer           User            @relation("ShiftOfficer", fields: [officerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  incidents         Incident[]
 
   @@unique([shiftDate, shiftDefinitionId])
   @@index([startsAt, endsAt])
@@ -124,4 +132,84 @@ model AuditLog {
 
   @@index([entity, entityId])
   @@index([at])
+}
+
+/// Text enums validated by @sr/shared. shiftCode, occurredLocalDate and severityRank are denormalised for analytics.
+model Incident {
+  id                Int                  @id @default(autoincrement())
+  ref               String               @unique @db.NVarChar(20)
+  shiftId           Int
+  shiftCode         String               @db.NVarChar(20)
+  occurredAt        DateTime
+  occurredLocalDate DateTime             @db.Date
+  locationId        Int
+  locationDetail    String?              @db.NVarChar(200)
+  categoryId        Int
+  severity          String               @db.NVarChar(20)
+  severityRank      Int
+  reportedById      Int
+  description       String               @db.NVarChar(2000)
+  immediateAction   String?              @db.NVarChar(2000)
+  escalatedTo       String?              @db.NVarChar(200)
+  escalatedAt       DateTime?
+  assignedTo        String?              @db.NVarChar(200)
+  status            String               @db.NVarChar(20)
+  resolvedAt        DateTime?
+  resolution        String?              @db.NVarChar(2000)
+  minutesToResolve  Int?
+  escalationResult  String               @db.NVarChar(20)
+  escalationMinutes Int?
+  createdById       Int
+  updatedById       Int
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  shift             Shift                @relation(fields: [shiftId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  location          LookupItem           @relation("IncidentLocation", fields: [locationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  category          LookupItem           @relation("IncidentCategory", fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reportedBy        User                 @relation("IncidentReportedBy", fields: [reportedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdBy         User                 @relation("IncidentCreatedBy", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  updatedBy         User                 @relation("IncidentUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  attachments       IncidentAttachment[]
+  events            IncidentEvent[]
+
+  @@index([occurredAt])
+  @@index([occurredLocalDate])
+  @@index([shiftId])
+  @@index([status])
+  @@index([severity])
+  @@index([categoryId, locationId, occurredAt])
+}
+
+model IncidentAttachment {
+  id           Int      @id @default(autoincrement())
+  incidentId   Int
+  storedName   String   @unique @db.NVarChar(200)
+  originalName String   @db.NVarChar(255)
+  mimeType     String   @db.NVarChar(100)
+  sizeBytes    Int
+  uploadedById Int
+  createdAt    DateTime @default(now())
+  incident     Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  uploadedBy   User     @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([incidentId])
+}
+
+model IncidentEvent {
+  id         Int      @id @default(autoincrement())
+  incidentId Int
+  userId     Int?
+  kind       String   @db.NVarChar(30)
+  summary    String   @db.NVarChar(300)
+  at         DateTime @default(now())
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  user       User?    @relation("IncidentEventUser", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([incidentId, at])
+}
+
+/// One row per year; lastNumber is incremented with MERGE ... HOLDLOCK so refs never collide.
+model IncidentSequence {
+  year       Int @id
+  lastNumber Int
 }

@@ -7,6 +7,10 @@ export async function resetDb(): Promise<void> {
     throw new Error('resetDb refused: DB_DATABASE is not the shiftreporting_test database')
   }
   loginLimiter.clear()
+  await prisma.incidentEvent.deleteMany()
+  await prisma.incidentAttachment.deleteMany()
+  await prisma.incident.deleteMany()
+  await prisma.incidentSequence.deleteMany()
   await prisma.auditLog.deleteMany()
   await prisma.session.deleteMany()
   await prisma.shift.deleteMany()

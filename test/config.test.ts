@@ -74,15 +74,15 @@ describe('config', () => {
 
   it('adds, rejects duplicates of, and deactivates lookup values', async () => {
     const admin = await loginAs(app, 'ADMIN')
-    const created = await call(app, 'POST', '/api/config/lookups', { cookie: admin.cookie, body: { listType: 'LOCATION', value: 'Isinya W.B' } })
+    const created = await call(app, 'POST', '/api/config/lookups', { cookie: admin.cookie, body: { listType: 'LOCATION', value: 'Gate 9' } })
     expect(created.status).toBe(201)
     const item = (await created.json()) as LookupItemDto
-    expect(item.sortOrder).toBe(1)
-    expect((await call(app, 'POST', '/api/config/lookups', { cookie: admin.cookie, body: { listType: 'LOCATION', value: 'Isinya W.B' } })).status).toBe(409)
+    expect(item.sortOrder).toBe(7)
+    expect((await call(app, 'POST', '/api/config/lookups', { cookie: admin.cookie, body: { listType: 'LOCATION', value: 'Gate 9' } })).status).toBe(409)
     const off = await call(app, 'PATCH', `/api/config/lookups/${item.id}`, { cookie: admin.cookie, body: { isActive: false } })
     expect(((await off.json()) as LookupItemDto).isActive).toBe(false)
     const active = (await (await call(app, 'GET', '/api/config/lookups?listType=LOCATION&active=true', { cookie: admin.cookie })).json()) as LookupItemDto[]
-    expect(active).toHaveLength(0)
+    expect(active.map((i) => i.id)).not.toContain(item.id)
   })
 
   it('stores vehicle IDs in upper case and keeps them unique', async () => {
