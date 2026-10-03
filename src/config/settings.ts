@@ -1,5 +1,6 @@
 import { DEFAULT_SETTINGS, settingsSchema, type Settings, type SettingsUpdate } from '@sr/shared'
 import { writeAudit } from '../audit/audit'
+import { publish } from '../events/bus'
 import { prisma, type Db } from '../lib/prisma'
 import type { SessionUser } from '../types'
 
@@ -34,5 +35,6 @@ export async function updateSettings(actor: SessionUser, input: SettingsUpdate, 
     }
     await writeAudit(tx, { userId: actor.id, entity: 'SystemSetting', action: 'UPDATE', before, after: { ...before, ...input }, ip })
   })
+  publish('config', 'audit')
   return getSettings()
 }

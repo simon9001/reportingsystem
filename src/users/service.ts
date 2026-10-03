@@ -2,6 +2,7 @@ import type { createUserSchema, Role, updateUserSchema, UpdateUserResult, UserDt
 import type { z } from 'zod'
 import { writeAudit } from '../audit/audit'
 import { hashPassword } from '../auth/password'
+import { publish } from '../events/bus'
 import { AppError, isUniqueViolation } from '../lib/errors'
 import { prisma } from '../lib/prisma'
 import type { SessionUser } from '../types'
@@ -27,6 +28,7 @@ export async function createUser(actor: SessionUser, input: z.output<typeof crea
       await writeAudit(tx, { userId: actor.id, entity: 'User', entityId: u.id, action: 'CREATE', after: toUserDto(u), ip })
       return u
     })
+    publish('users', 'audit')
     return toUserDto(user)
   } catch (err) {
     if (isUniqueViolation(err)) throw emailTaken()
@@ -47,6 +49,7 @@ export async function updateUser(actor: SessionUser, id: number, input: z.output
       await writeAudit(tx, { userId: actor.id, entity: 'User', entityId: id, action: 'UPDATE', before: toUserDto(existing), after: toUserDto(u), ip })
       return u
     })
+    publish('users', 'audit')
     // Not blocked: the Roster page flags these shifts so they can be reassigned.
     const unrosterable = input.isActive === false || (input.role !== undefined && input.role !== 'OFFICER')
     const futureShifts = unrosterable
@@ -68,4 +71,5 @@ export async function resetUserPassword(actor: SessionUser, id: number, password
     await tx.session.deleteMany({ where: { userId: id } })
     await writeAudit(tx, { userId: actor.id, entity: 'User', entityId: id, action: 'UPDATE', after: { passwordReset: true }, ip })
   })
+  publish('users', 'audit')
 }

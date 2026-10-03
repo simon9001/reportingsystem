@@ -5,6 +5,7 @@ import {
   type UpdateVehicleInput, type VehicleDto,
 } from '@sr/shared'
 import { writeAudit } from '../audit/audit'
+import { publish } from '../events/bus'
 import { AppError, isUniqueViolation } from '../lib/errors'
 import { prisma, type Db } from '../lib/prisma'
 import { coverageProblem } from '../lib/shiftTime'
@@ -40,6 +41,7 @@ export async function updateShiftDefinitions(actor: SessionUser, updates: ShiftD
       before: existing.map(toShiftDefinitionDto), after: merged.map(toShiftDefinitionDto), ip,
     })
   })
+  publish('config', 'audit')
   return listShiftDefinitions()
 }
 
@@ -59,6 +61,7 @@ export async function updateEscalationRules(actor: SessionUser, rules: Escalatio
     }
     await writeAudit(tx, { userId: actor.id, entity: 'EscalationRule', action: 'UPDATE', before, after: rules, ip })
   })
+  publish('config', 'audit')
   return listEscalationRules()
 }
 
@@ -83,6 +86,7 @@ export async function createLookup(actor: SessionUser, input: CreateLookupInput,
       await writeAudit(tx, { userId: actor.id, entity: 'LookupItem', entityId: created.id, action: 'CREATE', after: toLookupDto(created), ip })
       return created
     })
+    publish('config', 'audit')
     return toLookupDto(item)
   } catch (err) {
     if (isUniqueViolation(err)) throw lookupTaken()
@@ -99,6 +103,7 @@ export async function updateLookup(actor: SessionUser, id: number, input: Update
       await writeAudit(tx, { userId: actor.id, entity: 'LookupItem', entityId: id, action: 'UPDATE', before: toLookupDto(existing), after: toLookupDto(updated), ip })
       return updated
     })
+    publish('config', 'audit')
     return toLookupDto(item)
   } catch (err) {
     if (isUniqueViolation(err)) throw lookupTaken()
@@ -122,6 +127,7 @@ export async function createVehicle(actor: SessionUser, input: CreateVehicleInpu
       await writeAudit(tx, { userId: actor.id, entity: 'Vehicle', entityId: created.id, action: 'CREATE', after: toVehicleDto(created), ip })
       return created
     })
+    publish('config', 'audit')
     return toVehicleDto(v)
   } catch (err) {
     if (isUniqueViolation(err)) throw vehicleTaken()
@@ -138,6 +144,7 @@ export async function updateVehicle(actor: SessionUser, id: number, input: Updat
       await writeAudit(tx, { userId: actor.id, entity: 'Vehicle', entityId: id, action: 'UPDATE', before: toVehicleDto(existing), after: toVehicleDto(updated), ip })
       return updated
     })
+    publish('config', 'audit')
     return toVehicleDto(v)
   } catch (err) {
     if (isUniqueViolation(err)) throw vehicleTaken()

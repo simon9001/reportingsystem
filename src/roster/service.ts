@@ -4,6 +4,7 @@ import {
 } from '@sr/shared'
 import { writeAudit } from '../audit/audit'
 import type { Prisma } from '../generated/prisma/client'
+import { publish } from '../events/bus'
 import { env } from '../lib/env'
 import { AppError } from '../lib/errors'
 import { prisma, type Db } from '../lib/prisma'
@@ -67,7 +68,7 @@ export async function upsertRoster(actor: SessionUser, entries: RosterEntryInput
   await assertRosterable(prisma, [...new Set(entries.flatMap((e) => [e.supervisorId, e.officerId]))])
   const isAdmin = actor.role === 'ADMIN'
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const results: ShiftWithPeople[] = []
     for (const e of entries) {
       const def = defs.find((d) => d.code === e.shiftCode)!
@@ -102,6 +103,8 @@ export async function upsertRoster(actor: SessionUser, entries: RosterEntryInput
     }
     return results.map(toShiftDto)
   })
+  publish('roster', 'audit')
+  return result
 }
 
 export async function deleteRosterShift(actor: SessionUser, id: number, ip: string | null, now = new Date()): Promise<void> {
@@ -112,6 +115,7 @@ export async function deleteRosterShift(actor: SessionUser, id: number, ip: stri
     await tx.shift.delete({ where: { id } })
     await writeAudit(tx, { userId: actor.id, entity: 'Shift', entityId: id, action: 'DELETE', before: toShiftDto(shift), ip })
   })
+  publish('roster', 'audit')
 }
 
 export async function copyWeek(
@@ -149,6 +153,7 @@ export async function copyWeek(
       created += 1
     }
   })
+  if (created > 0) publish('roster', 'audit')
   return { created, skipped }
 }
 

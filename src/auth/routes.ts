@@ -1,6 +1,7 @@
 import { changePasswordSchema, loginSchema, type MeResponse } from '@sr/shared'
 import { Hono } from 'hono'
 import { writeAudit } from '../audit/audit'
+import { publish } from '../events/bus'
 import { AppError } from '../lib/errors'
 import { clientIp } from '../lib/http'
 import { prisma } from '../lib/prisma'
@@ -34,6 +35,7 @@ authRoutes.post('/login', async (c) => {
     await writeAudit(tx, { userId: user.id, entity: 'User', entityId: user.id, action: 'LOGIN', ip })
     return { token: session.token, updated: u }
   })
+  publish('audit')
   setSessionCookie(c, token)
   return c.json({ user: toSessionUser(updated) })
 })
@@ -43,6 +45,7 @@ authRoutes.post('/logout', requireAuth({ allowPasswordChange: true }), async (c)
   const sessionId = c.get('sessionId')
   if (sessionId) await deleteSession(sessionId)
   await writeAudit(prisma, { userId: user.id, entity: 'User', entityId: user.id, action: 'LOGOUT', ip: clientIp(c) })
+  publish('audit')
   clearSessionCookie(c)
   return c.body(null, 204)
 })
@@ -68,5 +71,6 @@ authRoutes.post('/change-password', requireAuth({ allowPasswordChange: true }), 
     await writeAudit(tx, { userId: user.id, entity: 'User', entityId: user.id, action: 'UPDATE', after: { passwordChanged: true }, ip: clientIp(c) })
     return u
   })
+  publish('audit')
   return c.json({ user: toSessionUser(updated) })
 })

@@ -5,6 +5,7 @@ import { sessionMiddleware } from './auth/middleware'
 import { authRoutes } from './auth/routes'
 import { auditRoutes } from './audit/routes'
 import { configRoutes } from './config/routes'
+import { eventsRoutes } from './events/routes'
 import { errorHandler } from './lib/errors'
 import { originCheck } from './lib/http'
 import { rosterRoutes } from './roster/routes'
@@ -30,6 +31,7 @@ export function createApp() {
   api.route('/config', configRoutes)
   api.route('/roster', rosterRoutes)
   api.route('/audit', auditRoutes)
+  api.route('/events', eventsRoutes)
 
   app.route('/api', api)
   return app
