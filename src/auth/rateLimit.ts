@@ -10,8 +10,13 @@ export class LoginLimiter {
   private recent(key: string): number[] {
     const cutoff = this.now() - this.windowMs
     const list = (this.failures.get(key) ?? []).filter((t) => t > cutoff)
-    this.failures.set(key, list)
+    if (list.length === 0) this.failures.delete(key)
+    else this.failures.set(key, list)
     return list
+  }
+
+  get size(): number {
+    return this.failures.size
   }
 
   isBlocked(key: string): boolean {
@@ -19,7 +24,7 @@ export class LoginLimiter {
   }
 
   recordFailure(key: string): void {
-    this.recent(key).push(this.now())
+    this.failures.set(key, [...this.recent(key), this.now()])
   }
 
   reset(key: string): void {

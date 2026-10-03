@@ -29,7 +29,7 @@ export async function validateSession(token: string): Promise<{ sessionId: strin
   }
   // Sliding expiry: extend once less than half the lifetime remains.
   if (session.expiresAt.getTime() - Date.now() < ttlMs() / 2) {
-    await prisma.session.update({ where: { id }, data: { expiresAt: new Date(Date.now() + ttlMs()) } })
+    await prisma.session.updateMany({ where: { id }, data: { expiresAt: new Date(Date.now() + ttlMs()) } })
   }
   return { sessionId: id, user: toSessionUser(session.user) }
 }

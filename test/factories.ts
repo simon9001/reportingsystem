@@ -1,5 +1,5 @@
 import type { Role } from '@sr/shared'
-import { createApp } from '../src/app'
+import type { createApp } from '../src/app'
 import { hashPassword } from '../src/auth/password'
 import { prisma } from '../src/lib/prisma'
 
