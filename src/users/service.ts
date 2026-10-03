@@ -1,4 +1,4 @@
-import type { createUserSchema, Role, updateUserSchema, UserDto } from '@sr/shared'
+import type { createUserSchema, Role, updateUserSchema, UpdateUserResult, UserDto } from '@sr/shared'
 import type { z } from 'zod'
 import { writeAudit } from '../audit/audit'
 import { hashPassword } from '../auth/password'
@@ -34,7 +34,7 @@ export async function createUser(actor: SessionUser, input: z.output<typeof crea
   }
 }
 
-export async function updateUser(actor: SessionUser, id: number, input: z.output<typeof updateUserSchema>, ip: string | null): Promise<UserDto> {
+export async function updateUser(actor: SessionUser, id: number, input: z.output<typeof updateUserSchema>, ip: string | null): Promise<UpdateUserResult> {
   const existing = await prisma.user.findUnique({ where: { id } })
   if (!existing) throw new AppError('NOT_FOUND', 'User not found')
   if (id === actor.id && (input.isActive === false || (input.role !== undefined && input.role !== existing.role))) {
@@ -47,7 +47,12 @@ export async function updateUser(actor: SessionUser, id: number, input: z.output
       await writeAudit(tx, { userId: actor.id, entity: 'User', entityId: id, action: 'UPDATE', before: toUserDto(existing), after: toUserDto(u), ip })
       return u
     })
-    return toUserDto(user)
+    // Not blocked: the Roster page flags these shifts so they can be reassigned.
+    const unrosterable = input.isActive === false || (input.role !== undefined && input.role !== 'OFFICER')
+    const futureShifts = unrosterable
+      ? await prisma.shift.count({ where: { endsAt: { gt: new Date() }, OR: [{ supervisorId: id }, { officerId: id }] } })
+      : 0
+    return { ...toUserDto(user), futureShifts }
   } catch (err) {
     if (isUniqueViolation(err)) throw emailTaken()
     throw err

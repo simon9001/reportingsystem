@@ -1,6 +1,6 @@
 import {
   addDays, daysBetween, fromDateString, toDateString,
-  type CopyWeekResult, type CurrentShiftDto, type RosterEntryInput, type ShiftDto,
+  type CopyWeekResult, type CurrentShiftDto, type RosterEntryInput, type RosterPersonRef, type ShiftDto,
 } from '@sr/shared'
 import { writeAudit } from '../audit/audit'
 import type { Prisma } from '../generated/prisma/client'
@@ -13,6 +13,10 @@ import type { SessionUser } from '../types'
 const include = { definition: true, supervisor: true, officer: true } as const
 export type ShiftWithPeople = Prisma.ShiftGetPayload<{ include: typeof include }>
 
+function toRosterPerson(u: { id: number; fullName: string; isActive: boolean; role: string }): RosterPersonRef {
+  return { id: u.id, fullName: u.fullName, rosterable: u.isActive && u.role === 'OFFICER' }
+}
+
 export function toShiftDto(s: ShiftWithPeople): ShiftDto {
   return {
     id: s.id,
@@ -21,8 +25,8 @@ export function toShiftDto(s: ShiftWithPeople): ShiftDto {
     shiftName: s.definition.name,
     startsAt: s.startsAt.toISOString(),
     endsAt: s.endsAt.toISOString(),
-    supervisor: { id: s.supervisor.id, fullName: s.supervisor.fullName },
-    officer: { id: s.officer.id, fullName: s.officer.fullName },
+    supervisor: toRosterPerson(s.supervisor),
+    officer: toRosterPerson(s.officer),
   }
 }
 
@@ -41,8 +45,10 @@ async function assertRosterable(db: Db, ids: number[]): Promise<void> {
   const users = await db.user.findMany({ where: { id: { in: ids } } })
   for (const id of ids) {
     const u = users.find((x) => x.id === id)
-    if (!u || !u.isActive || u.role !== 'OFFICER') {
-      throw new AppError('VALIDATION_ERROR', 'Only active Control Room Officers can be rostered', { entries: `User ${id} cannot be rostered` })
+    if (!u) throw new AppError('VALIDATION_ERROR', `User ${id} not found`, { entries: `User ${id} not found` })
+    if (!u.isActive || u.role !== 'OFFICER') {
+      const message = `${u.fullName} cannot be rostered (inactive or not a Control Room Officer)`
+      throw new AppError('VALIDATION_ERROR', message, { entries: message })
     }
   }
 }

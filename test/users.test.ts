@@ -1,4 +1,4 @@
-import type { UserDto } from '@sr/shared'
+import type { ShiftDto, UpdateUserResult, UserDto } from '@sr/shared'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../src/app'
 import { prisma } from '../src/lib/prisma'
@@ -87,5 +87,23 @@ describe('users', () => {
   it('returns 404 for unknown users', async () => {
     const { cookie } = await loginAs(app, 'ADMIN')
     expect((await call(app, 'PATCH', '/api/users/999999', { cookie, body: { fullName: 'Nobody Here' } })).status).toBe(404)
+  })
+
+  it('reports upcoming shifts of a deactivated officer and flags them on the roster', async () => {
+    const { cookie } = await loginAs(app, 'ADMIN')
+    const simon = await createUser('OFFICER', { fullName: 'Simon Gatungo' })
+    const antony = await createUser('OFFICER', { fullName: 'Antony Ochieng' })
+    const def = await prisma.shiftDefinition.create({ data: { code: 'DAY', name: 'Day', startTime: '08:00', endTime: '17:00', sortOrder: 1 } })
+    await prisma.shift.create({
+      data: { shiftDate: new Date('2030-01-07'), shiftDefinitionId: def.id, startsAt: new Date('2030-01-07T05:00:00Z'), endsAt: new Date('2030-01-07T14:00:00Z'), supervisorId: simon.id, officerId: antony.id },
+    })
+    const res = await call(app, 'PATCH', `/api/users/${simon.id}`, { cookie, body: { isActive: false } })
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as UpdateUserResult).futureShifts).toBe(1)
+    const roster = (await (await call(app, 'GET', '/api/roster?from=2030-01-07&to=2030-01-07', { cookie })).json()) as ShiftDto[]
+    expect(roster[0]!.supervisor.rosterable).toBe(false)
+    expect(roster[0]!.officer.rosterable).toBe(true)
+    const noop = await call(app, 'PATCH', `/api/users/${antony.id}`, { cookie, body: { fullName: 'Antony O' } })
+    expect(((await noop.json()) as UpdateUserResult).futureShifts).toBe(0)
   })
 })
