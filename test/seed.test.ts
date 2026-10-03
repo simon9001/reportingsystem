@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getSettings } from '../src/config/settings'
 import { seedDefaults } from '../src/config/seedDefaults'
 import { prisma } from '../src/lib/prisma'
@@ -23,5 +23,17 @@ describe('seedDefaults', () => {
     await seedDefaults(prisma)
     expect(await prisma.shiftDefinition.count()).toBe(2)
     expect((await prisma.escalationRule.findUniqueOrThrow({ where: { severity: 'HIGH' } })).withinMinutes).toBe(20)
+  })
+
+  it('falls back per setting and warns when a stored value is invalid', async () => {
+    await seedDefaults(prisma)
+    await prisma.systemSetting.update({ where: { key: 'ddEmails' }, data: { value: '["not-an-email"]' } })
+    await prisma.systemSetting.update({ where: { key: 'reportDeadlineMinutes' }, data: { value: '45' } })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const settings = await getSettings()
+    expect(settings.ddEmails).toEqual([])
+    expect(settings.reportDeadlineMinutes).toBe(45)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('ddEmails'))
+    warn.mockRestore()
   })
 })

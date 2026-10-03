@@ -5,17 +5,23 @@ import type { SessionUser } from '../types'
 
 export async function getSettings(db: Db = prisma): Promise<Settings> {
   const rows = await db.systemSetting.findMany()
-  const raw: Record<string, unknown> = { ...DEFAULT_SETTINGS }
-  for (const row of rows) {
-    if (!(row.key in DEFAULT_SETTINGS)) continue
+  const stored = new Map(rows.map((r) => [r.key, r.value]))
+  const result: Record<string, unknown> = { ...DEFAULT_SETTINGS }
+  for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
+    const text = stored.get(key)
+    if (text === undefined) continue
     try {
-      raw[row.key] = JSON.parse(row.value)
+      const parsed = settingsSchema.shape[key].safeParse(JSON.parse(text))
+      if (parsed.success) {
+        result[key] = parsed.data
+        continue
+      }
     } catch {
-      // keep the default for a corrupt value
+      // fall through to the warning
     }
+    console.warn(`Setting "${key}" has an invalid stored value; using the default`)
   }
-  const parsed = settingsSchema.safeParse(raw)
-  return parsed.success ? parsed.data : DEFAULT_SETTINGS
+  return result as Settings
 }
 
 export async function updateSettings(actor: SessionUser, input: SettingsUpdate, ip: string | null): Promise<Settings> {
