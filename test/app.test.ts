@@ -32,6 +32,13 @@ describe('app skeleton', () => {
     expect(res.status).toBe(400)
   })
 
+  it('rejects oversized request bodies with 413', async () => {
+    const body = JSON.stringify({ email: 'a@b.co', password: 'x'.repeat(200 * 1024) })
+    const res = await createApp().request('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body })
+    expect(res.status).toBe(413)
+    expect(await res.json()).toEqual({ error: { code: 'VALIDATION_ERROR', message: 'Request body is too large' } })
+  })
+
   it('hides unexpected errors behind a request id', async () => {
     const app = createApp()
     app.get('/boom', () => { throw new Error('secret detail') })

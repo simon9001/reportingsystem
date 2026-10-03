@@ -5,7 +5,14 @@ const envSchema = z.object({
   SR_DATABASE_URL: z.string().startsWith('sqlserver://', 'SR_DATABASE_URL must be a sqlserver:// connection string'),
   SR_PORT: z.coerce.number().int().positive().default(3000),
   SR_APP_BASE_URL: z.url().default('http://localhost:5173'),
-  SR_APP_TIMEZONE: z.string().default(DEFAULT_TIMEZONE),
+  SR_APP_TIMEZONE: z.string().default(DEFAULT_TIMEZONE).refine((v) => {
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: v })
+      return true
+    } catch {
+      return false
+    }
+  }, 'SR_APP_TIMEZONE must be a valid IANA time zone'),
   SR_COOKIE_SECURE: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   SR_TRUST_PROXY: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   SR_SESSION_HOURS: z.coerce.number().positive().default(12),

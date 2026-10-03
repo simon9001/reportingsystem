@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { requestId } from 'hono/request-id'
 import { sessionMiddleware } from './auth/middleware'
 import { authRoutes } from './auth/routes'
@@ -17,6 +18,10 @@ export function createApp() {
   app.notFound((c) => c.json({ error: { code: 'NOT_FOUND', message: 'Not found' } }, 404))
 
   const api = new Hono<AppEnv>()
+  api.use('*', bodyLimit({
+    maxSize: 100 * 1024,
+    onError: (c) => c.json({ error: { code: 'VALIDATION_ERROR', message: 'Request body is too large' } }, 413),
+  }))
   api.use('*', originCheck)
   api.use('*', sessionMiddleware)
   api.get('/health', (c) => c.json({ ok: true }))
