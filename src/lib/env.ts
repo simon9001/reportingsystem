@@ -4,6 +4,7 @@ import { readDbSettings } from './dbConfig'
 
 const envSchema = z.object({
   SR_PORT: z.coerce.number().int().positive().default(3000),
+  SR_UPLOAD_DIR: z.string().min(1).default('uploads'),
   SR_APP_BASE_URL: z.url().default('http://localhost:5173'),
   SR_APP_TIMEZONE: z.string().default(DEFAULT_TIMEZONE).refine((v) => {
     try {

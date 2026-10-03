@@ -1,6 +1,8 @@
 import { incidentInputSchema } from '@sr/shared'
 import { Hono } from 'hono'
 import { currentUser, requireAuth } from '../auth/middleware'
+import { uploadAttachments } from '../attachments/service'
+import { AppError } from '../lib/errors'
 import { clientIp } from '../lib/http'
 import { parseBody, parseId } from '../lib/validate'
 import type { AppEnv } from '../types'
@@ -19,4 +21,13 @@ incidentsRoutes.patch('/:id', requireAuth(), async (c) => {
   const id = parseId(c)
   const input = await parseBody(c, incidentInputSchema)
   return c.json(await updateIncident(currentUser(c), id, input, clientIp(c)))
+})
+
+incidentsRoutes.post('/:id/attachments', requireAuth(), async (c) => {
+  const id = parseId(c)
+  const body = await c.req.parseBody({ all: true })
+  const raw = body['files']
+  const files = (Array.isArray(raw) ? raw : raw === undefined ? [] : [raw]).filter((f): f is File => f instanceof File)
+  if (files.length === 0) throw new AppError('VALIDATION_ERROR', 'Choose at least one file', { files: 'Choose at least one file' })
+  return c.json(await uploadAttachments(currentUser(c), id, files, clientIp(c)), 201)
 })

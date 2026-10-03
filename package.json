@@ -25,6 +25,7 @@
     "@sr/shared": "workspace:*",
     "date-fns": "^4.4.0",
     "dotenv": "^18.0.5",
+    "file-type": "^22.1.1",
     "hono": "^4.13.12",
     "zod": "^4.6.5"
   },
