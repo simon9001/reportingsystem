@@ -1,4 +1,4 @@
-import { localDateString } from '@sr/shared'
+import { localDateString, SEVERITY_RANK } from '@sr/shared'
 import { seedDefaults } from '../src/config/seedDefaults'
 import { env } from '../src/lib/env'
 import { prisma } from '../src/lib/prisma'
@@ -41,4 +41,51 @@ export function incidentBody(world: Awaited<ReturnType<typeof setupIncidentWorld
     status: 'OPEN',
     ...overrides,
   }
+}
+
+let seq = 0
+export const resetIncidentSeq = () => { seq = 0 }
+
+/** Inserts directly (bypassing permissions and rules) so tests can place incidents anywhere in time. */
+export async function insertIncident(
+  world: Awaited<ReturnType<typeof setupIncidentWorld>>,
+  o: {
+    occurredAt: string
+    severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+    status?: string
+    description?: string
+    categoryValue?: string
+    locationValue?: string
+    shiftCode?: string
+    minutesToResolve?: number | null
+    escalationResult?: string
+    escalationMinutes?: number | null
+  },
+) {
+  seq += 1
+  const category = await prisma.lookupItem.findFirstOrThrow({ where: { listType: 'CATEGORY', value: o.categoryValue ?? 'CCTV' } })
+  const location = await prisma.lookupItem.findFirstOrThrow({ where: { listType: 'LOCATION', value: o.locationValue ?? 'Weighbridge 04' } })
+  const occurredAt = new Date(o.occurredAt)
+  const severity = o.severity ?? 'LOW'
+  return prisma.incident.create({
+    data: {
+      ref: `INC-2026-${String(seq).padStart(4, '0')}`,
+      shiftId: world.current.id,
+      shiftCode: o.shiftCode ?? 'DAY',
+      occurredAt,
+      occurredLocalDate: new Date(`${localDateString(occurredAt, env.SR_APP_TIMEZONE)}T00:00:00Z`),
+      locationId: location.id,
+      categoryId: category.id,
+      severity,
+      severityRank: SEVERITY_RANK[severity],
+      reportedById: world.supervisor.id,
+      description: o.description ?? 'Something happened',
+      status: o.status ?? 'OPEN',
+      minutesToResolve: o.minutesToResolve ?? null,
+      escalationResult: o.escalationResult ?? 'NOT_REQUIRED',
+      escalationMinutes: o.escalationMinutes ?? null,
+      createdById: world.supervisor.id,
+      updatedById: world.supervisor.id,
+    },
+  })
 }
