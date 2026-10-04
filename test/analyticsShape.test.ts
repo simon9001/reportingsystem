@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { attentionReasons, buildDayNight, buildTrend, onTimePct, previousPeriod } from '../src/analytics/shape'
+import { attentionReasons, buildDayNight, buildHotspots, buildSideTrend, buildTrend, onTimePct, previousPeriod, rankBySide, recurrenceKey } from '../src/analytics/shape'
 
 describe('analytics shaping', () => {
   it('computes the previous period of equal length', () => {
@@ -44,13 +44,46 @@ describe('analytics shaping', () => {
     ])
   })
 
-  it('explains why an incident needs attention', () => {
+  it('explains why an incident needs attention, counting recurrence per station or per vehicle', () => {
     const now = new Date('2026-09-30T12:00:00Z')
-    const reasons = attentionReasons(
-      { occurredAt: new Date('2026-09-29T10:00:00Z'), escalationResult: 'LATE', escalationMinutes: 45, categoryId: 1, locationId: 2 },
-      now, new Map([['1|2', 3]]), { recurringCount: 3, recurringDays: 7 },
-    )
-    expect(reasons).toEqual(['Open 26 h', 'Recurring (3 in 7 days)', 'Escalated late (45 min)'])
-    expect(attentionReasons({ occurredAt: now, escalationResult: 'NOT_ESCALATED', escalationMinutes: null, categoryId: 1, locationId: 2 }, now, new Map(), { recurringCount: 3, recurringDays: 7 })).toEqual(['Not escalated'])
+    const stat = { occurredAt: new Date('2026-09-29T10:00:00Z'), escalationResult: 'LATE', escalationMinutes: 45, side: 'STATIC', categoryId: 1, locationId: 2, vehicleId: null }
+    expect(recurrenceKey(stat)).toBe('S|1|2')
+    expect(attentionReasons(stat, now, new Map([['S|1|2', 3]]), { recurringCount: 3, recurringDays: 7 })).toEqual(['Open 26 h', 'Recurring (3 in 7 days)', 'Escalated late (45 min)'])
+    const mob = { occurredAt: now, escalationResult: 'NOT_ESCALATED', escalationMinutes: null, side: 'MOBILE', categoryId: 1, locationId: null, vehicleId: 9 }
+    expect(recurrenceKey(mob)).toBe('M|1|9')
+    expect(attentionReasons(mob, now, new Map([['M|1|9', 4]]), { recurringCount: 3, recurringDays: 7 })).toEqual(['Recurring (4 in 7 days)', 'Not escalated'])
+  })
+
+  it('counts static and mobile incidents per trend bucket', () => {
+    const t = buildSideTrend([
+      { date: '2026-09-01', side: 'STATIC', count: 2 },
+      { date: '2026-09-01', side: 'MOBILE', count: 1 },
+      { date: '2026-09-02', side: 'MOBILE', count: 4 },
+    ], '2026-09-01', '2026-09-02')
+    expect(t).toEqual({ granularity: 'day', points: [
+      { bucket: '2026-09-01', STATIC: 2, MOBILE: 1, total: 3 },
+      { bucket: '2026-09-02', STATIC: 0, MOBILE: 4, total: 4 },
+    ] })
+  })
+
+  it('ranks keys by total with the static/mobile split, ties broken by key', () => {
+    expect(rankBySide([
+      { key: 5, side: 'MOBILE', count: 2 }, { key: 3, side: 'STATIC', count: 1 }, { key: 3, side: 'MOBILE', count: 1 }, { key: 9, side: 'STATIC', count: 1 },
+    ], 2)).toEqual([{ key: 3, count: 2, static: 1, mobile: 1 }, { key: 5, count: 2, static: 0, mobile: 2 }])
+  })
+
+  it('groups hotspots into stations and places, merging typed places that differ only in case or spacing', () => {
+    const names = new Map([[1, 'Isinya W.B'], [2, 'Mombasa Road'], [10, 'CCTV'], [11, 'Tracksolid']])
+    const h = buildHotspots([
+      { side: 'STATIC', locationId: 1, locationText: null, categoryId: 10, count: 3 },
+      { side: 'MOBILE', locationId: null, locationText: 'Mlolongo', categoryId: 11, count: 1 },
+      { side: 'MOBILE', locationId: null, locationText: ' mlolongo ', categoryId: 11, count: 2 },
+      { side: 'MOBILE', locationId: 2, locationText: null, categoryId: 10, count: 1 },
+    ], names, 5)
+    expect(h).toEqual([
+      { key: 'station:1', kind: 'station', location: 'Isinya W.B', count: 3, topCategory: 'CCTV', drill: { side: 'STATIC', locationId: '1' } },
+      { key: 'typed:mlolongo', kind: 'place', location: 'Mlolongo', count: 3, topCategory: 'Tracksolid', drill: { side: 'MOBILE', q: 'Mlolongo' } },
+      { key: 'place:2', kind: 'place', location: 'Mombasa Road', count: 1, topCategory: 'CCTV', drill: { side: 'MOBILE', locationId: '2' } },
+    ])
   })
 })

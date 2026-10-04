@@ -140,19 +140,35 @@ export interface IncidentSummaryDto {
   escalatedOnTimePct: PeriodDelta
   openCriticalHigh: number
   openCriticalHighOver24h: number
+  bySide: Record<IncidentSide, SideStats>
 }
 export interface TrendPointDto { bucket: string; LOW: number; MEDIUM: number; HIGH: number; CRITICAL: number; total: number; movingAvg: number | null }
 export interface IncidentTrendDto { granularity: 'day' | 'week'; points: TrendPointDto[] }
 /** `key` is a severity code or a lookup id as a string. */
-export interface CountByDto { key: string; label: string; count: number }
-export interface HotspotDto { locationId: number; location: string; count: number; topCategory: string | null }
+export interface CountByDto { key: string; label: string; count: number; static: number; mobile: number }
+export interface SideStats { total: number; avgMinutesToResolve: number | null; escalatedOnTimePct: number | null; openCriticalHigh: number }
+export interface SideTrendPointDto { bucket: string; STATIC: number; MOBILE: number; total: number }
+export interface SideTrendDto { granularity: 'day' | 'week'; points: SideTrendPointDto[] }
+/** A static station or a mobile place (listed or typed). `drill` holds the explorer filters for this hotspot. */
+export interface HotspotDto { key: string; kind: 'station' | 'place'; location: string; count: number; topCategory: string | null; drill: Record<string, string> }
+export interface MobileHealthDto {
+  total: number
+  gpsOffline: number
+  gpsUnknown: number
+  dashcamOffline: number
+  dashcamUnknown: number
+  vehicleOffline: number
+  platforms: CountByDto[]
+}
 export interface DayNightPointDto { weekStart: string; counts: Record<string, number> }
 export interface DayNightDto { shifts: { code: string; name: string }[]; points: DayNightPointDto[] }
 export interface AttentionItemDto {
   id: number
   ref: string
+  side: IncidentSide
   occurredAt: string
   location: string
+  vehicle: string | null
   category: string
   severity: Severity
   status: IncidentStatus

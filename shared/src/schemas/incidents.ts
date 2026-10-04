@@ -120,6 +120,8 @@ export const incidentQuerySchema = z
 export type IncidentQuery = z.output<typeof incidentQuerySchema>
 
 export const analyticsQuerySchema = z
-  .object({ from: dateStringSchema, to: dateStringSchema })
+  .object({ from: dateStringSchema, to: dateStringSchema, side: z.enum(INCIDENT_SIDES).optional() })
   .refine((q) => q.from <= q.to, { path: ['to'], message: '"to" must be on or after "from"' })
   .refine((q) => daysBetween(q.from, q.to) <= 366, { path: ['to'], message: 'The period can be at most one year' })
+
+export const sideQuerySchema = z.object({ side: z.enum(INCIDENT_SIDES).optional() })
