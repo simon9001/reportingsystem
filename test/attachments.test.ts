@@ -81,7 +81,7 @@ describe('incident snapshots', () => {
     expect(pdf.headers.get('content-security-policy')).toBe("sandbox; default-src 'none'")
     expect(pdf.headers.get('content-type')).toBe('application/pdf')
     expect(pdf.headers.get('x-content-type-options')).toBe('nosniff')
-    expect(pdf.headers.get('content-disposition')).toBe("inline; filename*=UTF-8''r.pdf")
+    expect(pdf.headers.get('content-disposition')).toBe("attachment; filename*=UTF-8''r.pdf")
   })
 
   it('serves images inline with their detected type and nosniff', async () => {

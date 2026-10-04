@@ -9,12 +9,14 @@ export const attachmentsRoutes = new Hono<AppEnv>()
 
 attachmentsRoutes.get('/:id', requireAuth(), async (c) => {
   const file = await getAttachmentFile(parseId(c))
+  const pdf = file.mimeType === 'application/pdf'
   return c.body(new Uint8Array(file.data), 200, {
     'Content-Type': file.mimeType,
-    'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+    // PDFs download (browser PDF viewers won't render sandboxed documents); images display inline
+    'Content-Disposition': `${pdf ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
     'X-Content-Type-Options': 'nosniff',
     'Cache-Control': 'private, max-age=3600',
-    ...(file.mimeType === 'application/pdf' ? { 'Content-Security-Policy': "sandbox; default-src 'none'" } : {}),
+    ...(pdf ? { 'Content-Security-Policy': "sandbox; default-src 'none'" } : {}),
   })
 })
 
