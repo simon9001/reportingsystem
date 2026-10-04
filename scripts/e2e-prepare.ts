@@ -20,11 +20,10 @@ const off = await user('e2e-off@test.local', 'Mary Wambui', 'OFFICER', 'OfficerP
 
 const defs = await prisma.shiftDefinition.findMany({ where: { isActive: true } })
 const now = resolveShift(new Date(), defs, env.SR_APP_TIMEZONE)
-if (now) {
-  const w = shiftWindow(now.shiftDate, now.definition, env.SR_APP_TIMEZONE)
-  await prisma.shift.create({
-    data: { shiftDate: fromDateString(now.shiftDate), shiftDefinitionId: now.definition.id, startsAt: w.startsAt, endsAt: w.endsAt, supervisorId: sup.id, officerId: off.id },
-  })
-}
+if (!now) throw new Error('E2E prepare: no active shift definition covers the current time; cannot roster the current shift.')
+const w = shiftWindow(now.shiftDate, now.definition, env.SR_APP_TIMEZONE)
+await prisma.shift.create({
+  data: { shiftDate: fromDateString(now.shiftDate), shiftDefinitionId: now.definition.id, startsAt: w.startsAt, endsAt: w.endsAt, supervisorId: sup.id, officerId: off.id },
+})
 console.log('E2E database ready.')
 await prisma.$disconnect()
