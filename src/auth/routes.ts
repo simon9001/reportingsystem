@@ -5,6 +5,7 @@ import { publish } from '../events/bus'
 import { AppError } from '../lib/errors'
 import { clientIp } from '../lib/http'
 import { prisma } from '../lib/prisma'
+import { getPreviousEditableShift } from '../incidents/service'
 import { getCurrentShift } from '../roster/service'
 import { parseBody } from '../lib/validate'
 import type { AppEnv } from '../types'
@@ -52,7 +53,8 @@ authRoutes.post('/logout', requireAuth({ allowPasswordChange: true }), async (c)
 
 authRoutes.get('/me', requireAuth({ allowPasswordChange: true }), async (c) => {
   const user = currentUser(c)
-  const body: MeResponse = { user, currentShift: await getCurrentShift(user.id) }
+  const now = new Date()
+  const body: MeResponse = { user, currentShift: await getCurrentShift(user.id, now), previousShift: await getPreviousEditableShift(user, now) }
   return c.json(body)
 })
 

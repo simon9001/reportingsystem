@@ -1,4 +1,4 @@
-import type { IncidentDto } from '@sr/shared'
+import type { IncidentDto, MeResponse } from '@sr/shared'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../src/app'
 import { prisma } from '../src/lib/prisma'
@@ -107,6 +107,32 @@ describe('incident register', () => {
     const res = await call(app, 'POST', '/api/incidents', { cookie: admin.cookie, body: incidentBody(world, { occurredAt: ago(20 * HOUR) }) })
     expect(res.status).toBe(201)
     expect(((await res.json()) as IncidentDto).shiftId).toBe(world.older.id)
+  })
+
+  describe('late entries in the session payload', () => {
+    const me = async (cookie: string) => (await (await call(app, 'GET', '/api/auth/me', { cookie })).json()) as MeResponse
+
+    it('reports the previous shift the officer is rostered on and can still edit', async () => {
+      const body = await me(supCookie)
+      expect(body.previousShift).toMatchObject({ id: world.previous.id, shiftCode: 'NIGHT', myRole: 'OFFICER', endsAt: world.previous.endsAt.toISOString() })
+      expect(body.previousShift?.shiftName).toBeTruthy()
+    })
+
+    it('is null for officers not on the previous shift and for read-only or admin roles', async () => {
+      expect((await me(await login(app, world.otherOfficer.email))).previousShift).toBeNull()
+      expect((await me((await loginAs(app, 'DEPUTY_DIRECTOR')).cookie)).previousShift).toBeNull()
+      expect((await me((await loginAs(app, 'ADMIN')).cookie)).previousShift).toBeNull()
+    })
+
+    it('lets an officer rostered only on the previous shift see it and log a late entry there', async () => {
+      await prisma.shift.update({ where: { id: world.previous.id }, data: { supervisorId: world.otherOfficer.id } })
+      const cookie = await login(app, world.otherOfficer.email)
+      const body = await me(cookie)
+      expect(body.currentShift?.myRole).toBeNull()
+      expect(body.previousShift).toMatchObject({ id: world.previous.id, myRole: 'SUPERVISOR' })
+      const res = await call(app, 'POST', '/api/incidents', { cookie, body: incidentBody(world, { occurredAt: ago(5 * HOUR) }) })
+      expect(res.status).toBe(201)
+    })
   })
 
   describe('edit permissions', () => {

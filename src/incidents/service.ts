@@ -1,4 +1,4 @@
-import { fromDateString, localDateString, SEVERITY_RANK, type IncidentDto, type IncidentInputParsed, type LookupType } from '@sr/shared'
+import { fromDateString, localDateString, SEVERITY_RANK, toDateString, type IncidentDto, type IncidentInputParsed, type LookupType, type PreviousShiftDto } from '@sr/shared'
 import { writeAudit } from '../audit/audit'
 import { publish } from '../events/bus'
 import { env } from '../lib/env'
@@ -23,11 +23,33 @@ const timeFmt = () => new Intl.DateTimeFormat('en-GB', { timeZone: env.SR_APP_TI
 const fmtTime = (isoValue: string) => timeFmt().format(new Date(isoValue))
 
 /** The current shift and the one immediately before it. */
-export async function editableShiftIds(now = new Date()): Promise<number[]> {
+async function editableWindow(now: Date) {
   const current = await findShiftAt(now)
   const anchor = current?.startsAt ?? now
-  const previous = await prisma.shift.findFirst({ where: { endsAt: { lte: anchor } }, orderBy: { endsAt: 'desc' }, select: { id: true } })
-  return [current?.id, previous?.id].filter((id): id is number => id !== undefined)
+  const previous = await prisma.shift.findFirst({ where: { endsAt: { lte: anchor } }, orderBy: { endsAt: 'desc' }, include: { definition: true } })
+  const ids = [current?.id, previous?.id].filter((id): id is number => id !== undefined)
+  return { previous, ids }
+}
+
+export async function editableShiftIds(now = new Date()): Promise<number[]> {
+  return (await editableWindow(now)).ids
+}
+
+/** The previous shift when the user is rostered on it and the late-entry rules still let them log incidents there. */
+export async function getPreviousEditableShift(actor: SessionUser, now = new Date()): Promise<PreviousShiftDto | null> {
+  const { previous, ids } = await editableWindow(now)
+  if (!previous) return null
+  const myRole = previous.supervisorId === actor.id ? 'SUPERVISOR' : previous.officerId === actor.id ? 'OFFICER' : null
+  if (!myRole || !canEditIncident(actor, previous, ids)) return null
+  return {
+    id: previous.id,
+    shiftDate: toDateString(previous.shiftDate),
+    shiftCode: previous.definition.code,
+    shiftName: previous.definition.name,
+    startsAt: previous.startsAt.toISOString(),
+    endsAt: previous.endsAt.toISOString(),
+    myRole,
+  }
 }
 
 function assertNotFuture(occurredAt: Date, now: Date) {
