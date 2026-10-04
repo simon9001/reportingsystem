@@ -34,7 +34,7 @@ export function canEditIncident(actor: { id: number; role: string }, shift: Shif
 
 export interface IncidentSnapshot {
   occurredAt: string
-  locationId: number
+  locationId: number | null
   locationDetail: string | null
   categoryId: number
   severity: string

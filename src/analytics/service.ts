@@ -70,13 +70,13 @@ export async function incidentsByCategory(from: string, to: string, take = 6): P
 
 export async function incidentHotspots(from: string, to: string, take = 5): Promise<HotspotDto[]> {
   const where = { occurredAt: period(from, to) }
-  const top = await prisma.incident.groupBy({ by: ['locationId'], where, _count: { locationId: true }, orderBy: { _count: { locationId: 'desc' } }, take })
-  const ids = top.map((t) => t.locationId)
+  const top = await prisma.incident.groupBy({ by: ['locationId'], where: { ...where, locationId: { not: null } }, _count: { locationId: true }, orderBy: { _count: { locationId: 'desc' } }, take })
+  const ids = top.map((t) => t.locationId!)
   const pairs = await prisma.incident.groupBy({ by: ['locationId', 'categoryId'], where: { ...where, locationId: { in: ids } }, _count: { _all: true } })
   const names = await lookupNames([...ids, ...pairs.map((p) => p.categoryId)])
   return top.map((t) => {
     const best = pairs.filter((p) => p.locationId === t.locationId).sort((a, b) => b._count._all - a._count._all)[0]
-    return { locationId: t.locationId, location: names.get(t.locationId) ?? 'Unknown', count: t._count.locationId, topCategory: best ? names.get(best.categoryId) ?? null : null }
+    return { locationId: t.locationId!, location: names.get(t.locationId!) ?? 'Unknown', count: t._count.locationId, topCategory: best ? names.get(best.categoryId) ?? null : null }
   })
 }
 
@@ -111,7 +111,7 @@ export async function incidentAttention(now = new Date()): Promise<AttentionItem
     id: r.id,
     ref: r.ref,
     occurredAt: r.occurredAt.toISOString(),
-    location: r.location.value,
+    location: r.location?.value ?? r.locationText ?? '—',
     category: r.category.value,
     severity: r.severity as Severity,
     status: r.status as IncidentStatus,

@@ -54,7 +54,7 @@ export function buildDayNight(
 }
 
 export function attentionReasons(
-  i: { occurredAt: Date; escalationResult: string; escalationMinutes: number | null; categoryId: number; locationId: number },
+  i: { occurredAt: Date; escalationResult: string; escalationMinutes: number | null; categoryId: number; locationId: number | null },
   now: Date,
   recurring: Map<string, number>,
   settings: { recurringCount: number; recurringDays: number },

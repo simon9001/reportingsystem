@@ -4,7 +4,7 @@ import { createApp } from '../src/app'
 import { prisma } from '../src/lib/prisma'
 import { resetDb } from './db'
 import { call, login, loginAs } from './factories'
-import { incidentBody, setupIncidentWorld } from './incidentFixtures'
+import { incidentBody, insertIncident, setupIncidentWorld } from './incidentFixtures'
 
 const app = createApp()
 const HOUR = 3_600_000
@@ -173,5 +173,25 @@ describe('incident register', () => {
       expect(res.status).toBe(403)
       expect((await call(app, 'GET', '/api/incidents/99999999999', { cookie: dd.cookie })).status).toBe(404)
     })
+  })
+
+  it('returns mobile weighbridge fields and marks older rows as static', async () => {
+    const dd = await loginAs(app, 'DEPUTY_DIRECTOR')
+    const stat = await insertIncident(world, { occurredAt: ago(HOUR) })
+    const mob = await insertIncident(world, {
+      occurredAt: ago(HOUR), side: 'MOBILE', vehicleUnitId: 'KDG 143S', platformValue: 'Tracksolid', locationValue: null, locationText: 'Mlolongo',
+      vehicleStatus: 'ONLINE', gpsStatus: 'ONLINE', dashcamStatus: 'OFFLINE', remarks: 'CH3 shows rainbow colours',
+    })
+    const s = (await (await call(app, 'GET', `/api/incidents/${stat.id}`, { cookie: dd.cookie })).json()) as IncidentDto
+    expect(s).toMatchObject({ side: 'STATIC', vehicle: null, platform: null, locationText: null })
+    expect(s.location?.value).toBe('Weighbridge 04')
+    const m = (await (await call(app, 'GET', `/api/incidents/${mob.id}`, { cookie: dd.cookie })).json()) as IncidentDto
+    expect(m).toMatchObject({
+      side: 'MOBILE', location: null, locationText: 'Mlolongo', vehicleStatus: 'ONLINE', gpsStatus: 'ONLINE', dashcamStatus: 'OFFLINE',
+      remarks: 'CH3 shows rainbow colours',
+    })
+    expect(m.vehicle?.unitId).toBe('KDG 143S')
+    expect(m.platform?.value).toBe('Tracksolid')
+    expect(m.ref).toMatch(/^MWB-/)
   })
 })

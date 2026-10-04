@@ -9,20 +9,20 @@ datasource db {
 
 /// role: ADMIN | DEPUTY_DIRECTOR | OFFICER (validated by @sr/shared)
 model User {
-  id                 Int        @id @default(autoincrement())
-  fullName           String     @db.NVarChar(120)
-  email              String     @unique @db.NVarChar(200)
-  passwordHash       String     @db.NVarChar(200)
-  role               String     @db.NVarChar(20)
-  isActive           Boolean    @default(true)
-  mustChangePassword Boolean    @default(true)
-  lastLoginAt        DateTime?
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
-  sessions           Session[]
-  supervisedShifts   Shift[]    @relation("ShiftSupervisor")
-  officerShifts      Shift[]    @relation("ShiftOfficer")
-  auditLogs          AuditLog[]
+  id                  Int                  @id @default(autoincrement())
+  fullName            String               @db.NVarChar(120)
+  email               String               @unique @db.NVarChar(200)
+  passwordHash        String               @db.NVarChar(200)
+  role                String               @db.NVarChar(20)
+  isActive            Boolean              @default(true)
+  mustChangePassword  Boolean              @default(true)
+  lastLoginAt         DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  sessions            Session[]
+  supervisedShifts    Shift[]              @relation("ShiftSupervisor")
+  officerShifts       Shift[]              @relation("ShiftOfficer")
+  auditLogs           AuditLog[]
   incidentsReported   Incident[]           @relation("IncidentReportedBy")
   incidentsCreated    Incident[]           @relation("IncidentCreatedBy")
   incidentsUpdated    Incident[]           @relation("IncidentUpdatedBy")
@@ -76,26 +76,28 @@ model SystemSetting {
 
 /// listType: CATEGORY | SYSTEM | TEAM | PLATFORM | LOCATION
 model LookupItem {
-  id        Int      @id @default(autoincrement())
-  listType  String   @db.NVarChar(20)
-  value     String   @db.NVarChar(100)
-  sortOrder Int
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  Int        @id @default(autoincrement())
+  listType            String     @db.NVarChar(20)
+  value               String     @db.NVarChar(100)
+  sortOrder           Int
+  isActive            Boolean    @default(true)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
   incidentsAtLocation Incident[] @relation("IncidentLocation")
   incidentsInCategory Incident[] @relation("IncidentCategory")
+  incidentsOnPlatform Incident[] @relation("IncidentPlatform")
 
   @@unique([listType, value])
 }
 
 model Vehicle {
-  id          Int      @id @default(autoincrement())
-  unitId      String   @unique @db.NVarChar(50)
-  description String?  @db.NVarChar(200)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id          Int        @id @default(autoincrement())
+  unitId      String     @unique @db.NVarChar(50)
+  description String?    @db.NVarChar(200)
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  incidents   Incident[]
 }
 
 /// One roster row per date + shift. startsAt/endsAt are fixed when the row is created.
@@ -140,9 +142,10 @@ model Incident {
   ref               String               @unique @db.NVarChar(20)
   shiftId           Int
   shiftCode         String               @db.NVarChar(20)
+  side              String               @default("STATIC") @db.NVarChar(10)
   occurredAt        DateTime
   occurredLocalDate DateTime             @db.Date
-  locationId        Int
+  locationId        Int?
   locationDetail    String?              @db.NVarChar(200)
   categoryId        Int
   severity          String               @db.NVarChar(20)
@@ -156,6 +159,13 @@ model Incident {
   status            String               @db.NVarChar(20)
   resolvedAt        DateTime?
   resolution        String?              @db.NVarChar(2000)
+  locationText      String?              @db.NVarChar(100)
+  vehicleId         Int?
+  vehicleStatus     String?              @db.NVarChar(10)
+  gpsStatus         String?              @db.NVarChar(10)
+  dashcamStatus     String?              @db.NVarChar(10)
+  platformId        Int?
+  remarks           String?              @db.NVarChar(2000)
   minutesToResolve  Int?
   escalationResult  String               @db.NVarChar(20)
   escalationMinutes Int?
@@ -164,7 +174,9 @@ model Incident {
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
   shift             Shift                @relation(fields: [shiftId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  location          LookupItem           @relation("IncidentLocation", fields: [locationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  location          LookupItem?          @relation("IncidentLocation", fields: [locationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  vehicle           Vehicle?             @relation(fields: [vehicleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  platform          LookupItem?          @relation("IncidentPlatform", fields: [platformId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   category          LookupItem           @relation("IncidentCategory", fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   reportedBy        User                 @relation("IncidentReportedBy", fields: [reportedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdBy         User                 @relation("IncidentCreatedBy", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -178,6 +190,8 @@ model Incident {
   @@index([status])
   @@index([severity])
   @@index([categoryId, locationId, occurredAt])
+  @@index([side, occurredAt])
+  @@index([vehicleId])
 }
 
 model IncidentAttachment {
@@ -210,6 +224,9 @@ model IncidentEvent {
 
 /// One row per year; lastNumber is incremented with MERGE ... HOLDLOCK so refs never collide.
 model IncidentSequence {
-  year       Int @id
+  prefix     String @default("INC") @db.NVarChar(5)
+  year       Int
   lastNumber Int
+
+  @@id([prefix, year])
 }

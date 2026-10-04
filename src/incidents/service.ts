@@ -58,7 +58,7 @@ function assertNotFuture(occurredAt: Date, now: Date) {
   }
 }
 
-async function assertLookup(db: Db, id: number, listType: LookupType, field: string, label: string, keepId?: number) {
+async function assertLookup(db: Db, id: number, listType: LookupType, field: string, label: string, keepId?: number | null) {
   const item = await db.lookupItem.findUnique({ where: { id } })
   const ok = !!item && item.listType === listType && (item.isActive || id === keepId)
   if (!ok) throw new AppError('VALIDATION_ERROR', `Choose a valid ${label}`, { [field]: `Choose a valid ${label}` })
@@ -99,7 +99,7 @@ async function buildData(input: IncidentInputParsed, shift: ShiftWithPeople, occ
 
 interface SnapshotSource {
   occurredAt: Date
-  locationId: number
+  locationId: number | null
   locationDetail: string | null
   categoryId: number
   severity: string

@@ -60,3 +60,17 @@ export type LiveTopic = (typeof LIVE_TOPICS)[number]
 export const ATTACHMENT_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 export const MAX_ATTACHMENTS_PER_INCIDENT = 10
+
+export const INCIDENT_SIDES = ['STATIC', 'MOBILE'] as const
+export type IncidentSide = (typeof INCIDENT_SIDES)[number]
+export const INCIDENT_SIDE_LABELS: Record<IncidentSide, string> = { STATIC: 'Static weighbridge', MOBILE: 'Mobile weighbridge' }
+export const INCIDENT_SIDE_SHORT: Record<IncidentSide, string> = { STATIC: 'Static', MOBILE: 'Mobile' }
+export const INCIDENT_REF_PREFIX: Record<IncidentSide, 'INC' | 'MWB'> = { STATIC: 'INC', MOBILE: 'MWB' }
+
+export const VEHICLE_STATUSES = ['MOVING', 'IDLING', 'ONLINE', 'OFFLINE'] as const
+export type VehicleStatus = (typeof VEHICLE_STATUSES)[number]
+export const VEHICLE_STATUS_LABELS: Record<VehicleStatus, string> = { MOVING: 'Moving', IDLING: 'Idling', ONLINE: 'Online', OFFLINE: 'Offline' }
+
+export const LINK_STATUSES = ['ONLINE', 'OFFLINE', 'UNKNOWN'] as const
+export type LinkStatus = (typeof LINK_STATUSES)[number]
+export const LINK_STATUS_LABELS: Record<LinkStatus, string> = { ONLINE: 'Online', OFFLINE: 'Offline', UNKNOWN: 'Unknown' }

@@ -1,4 +1,4 @@
-import type { AuditAction, EscalationResult, IncidentEventKind, IncidentStatus, LookupType, Role, Severity, ShiftRole } from './constants'
+import type { AuditAction, EscalationResult, IncidentEventKind, IncidentSide, IncidentStatus, LinkStatus, LookupType, Role, Severity, ShiftRole, VehicleStatus } from './constants'
 
 export interface SessionUserDto { id: number; fullName: string; email: string; role: Role; mustChangePassword: boolean }
 export interface UserDto extends SessionUserDto { isActive: boolean; lastLoginAt: string | null; createdAt: string }
@@ -66,17 +66,27 @@ export interface ApiErrorBody { error: { code: string; message: string; fields?:
 
 export interface LookupRef { id: number; value: string }
 
+export interface VehicleRef { id: number; unitId: string }
+
 export interface IncidentListItemDto {
   id: number
   ref: string
+  side: IncidentSide
   occurredAt: string
   shiftId: number
   shiftDate: string
   shiftCode: string
   shiftName: string
   supervisorName: string
-  location: LookupRef
+  /** Static: the station. Mobile: a listed place, or null when the place was typed (see locationText). */
+  location: LookupRef | null
   locationDetail: string | null
+  locationText: string | null
+  vehicle: VehicleRef | null
+  vehicleStatus: VehicleStatus | null
+  gpsStatus: LinkStatus | null
+  dashcamStatus: LinkStatus | null
+  platform: LookupRef | null
   category: LookupRef
   severity: Severity
   status: IncidentStatus
@@ -107,6 +117,7 @@ export interface IncidentDto extends IncidentListItemDto {
   assignedTo: string | null
   resolvedAt: string | null
   resolution: string | null
+  remarks: string | null
   minutesToResolve: number | null
   officerName: string
   /** The incident happened on a later calendar day than the shift started (Night shift after midnight). */

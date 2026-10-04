@@ -28,7 +28,12 @@ export async function setupIncidentWorld(now = new Date()) {
   const location = await prisma.lookupItem.findFirstOrThrow({ where: { listType: 'LOCATION', value: 'Weighbridge 04' } })
   const category = await prisma.lookupItem.findFirstOrThrow({ where: { listType: 'CATEGORY', value: 'CCTV' } })
   const inactiveCategory = await prisma.lookupItem.update({ where: { listType_value: { listType: 'CATEGORY', value: 'Other' } }, data: { isActive: false } })
-  return { supervisor, officer, otherOfficer, current, previous, older, location, category, inactiveCategory }
+  const vehicle = await prisma.vehicle.create({ data: { unitId: 'KDG 143S', description: 'Mobile unit 1' } })
+  const vehicle2 = await prisma.vehicle.create({ data: { unitId: 'KCB 220T', description: 'Mobile unit 2' } })
+  const inactiveVehicle = await prisma.vehicle.create({ data: { unitId: 'KAA 001A', isActive: false } })
+  const platform = await prisma.lookupItem.findFirstOrThrow({ where: { listType: 'PLATFORM', value: 'Tracksolid' } })
+  const platform2 = await prisma.lookupItem.findFirstOrThrow({ where: { listType: 'PLATFORM', value: 'MettaX' } })
+  return { supervisor, officer, otherOfficer, current, previous, older, location, category, inactiveCategory, vehicle, vehicle2, inactiveVehicle, platform, platform2 }
 }
 
 export function incidentBody(world: Awaited<ReturnType<typeof setupIncidentWorld>>, overrides: Record<string, unknown> = {}) {
@@ -51,11 +56,20 @@ export async function insertIncident(
   world: Awaited<ReturnType<typeof setupIncidentWorld>>,
   o: {
     occurredAt: string
+    side?: 'STATIC' | 'MOBILE'
     severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
     status?: string
     description?: string
     categoryValue?: string
-    locationValue?: string
+    /** Defaults to Weighbridge 04 for static incidents and to none for mobile ones. */
+    locationValue?: string | null
+    locationText?: string | null
+    vehicleUnitId?: string
+    platformValue?: string
+    vehicleStatus?: string
+    gpsStatus?: string
+    dashcamStatus?: string
+    remarks?: string | null
     shiftCode?: string
     minutesToResolve?: number | null
     escalationResult?: string
@@ -63,18 +77,31 @@ export async function insertIncident(
   },
 ) {
   seq += 1
+  const side = o.side ?? 'STATIC'
   const category = await prisma.lookupItem.findFirstOrThrow({ where: { listType: 'CATEGORY', value: o.categoryValue ?? 'CCTV' } })
-  const location = await prisma.lookupItem.findFirstOrThrow({ where: { listType: 'LOCATION', value: o.locationValue ?? 'Weighbridge 04' } })
+  const locationValue = o.locationValue === undefined ? (side === 'STATIC' ? 'Weighbridge 04' : null) : o.locationValue
+  const location = locationValue ? await prisma.lookupItem.findFirstOrThrow({ where: { listType: 'LOCATION', value: locationValue } }) : null
+  const mobile = side === 'MOBILE'
+  const vehicle = mobile ? await prisma.vehicle.findUniqueOrThrow({ where: { unitId: o.vehicleUnitId ?? 'KDG 143S' } }) : null
+  const platform = mobile ? await prisma.lookupItem.findFirstOrThrow({ where: { listType: 'PLATFORM', value: o.platformValue ?? 'Tracksolid' } }) : null
   const occurredAt = new Date(o.occurredAt)
   const severity = o.severity ?? 'LOW'
   return prisma.incident.create({
     data: {
-      ref: `INC-2026-${String(seq).padStart(4, '0')}`,
+      ref: `${mobile ? 'MWB' : 'INC'}-2026-${String(seq).padStart(4, '0')}`,
+      side,
       shiftId: world.current.id,
       shiftCode: o.shiftCode ?? 'DAY',
       occurredAt,
       occurredLocalDate: new Date(`${localDateString(occurredAt, env.SR_APP_TIMEZONE)}T00:00:00Z`),
-      locationId: location.id,
+      locationId: location?.id ?? null,
+      locationText: mobile ? (o.locationText ?? null) : null,
+      vehicleId: vehicle?.id ?? null,
+      platformId: platform?.id ?? null,
+      vehicleStatus: mobile ? (o.vehicleStatus ?? 'ONLINE') : null,
+      gpsStatus: mobile ? (o.gpsStatus ?? 'ONLINE') : null,
+      dashcamStatus: mobile ? (o.dashcamStatus ?? 'ONLINE') : null,
+      remarks: mobile ? (o.remarks ?? null) : null,
       categoryId: category.id,
       severity,
       severityRank: SEVERITY_RANK[severity],

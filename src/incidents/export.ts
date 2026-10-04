@@ -57,7 +57,7 @@ export async function buildIncidentWorkbook(q: IncidentQuery, limit = EXPORT_LIM
       occurredAt: wallClock(r.occurredAt),
       shift: safeText(`${r.shift.definition.name} ${r.shift.shiftDate.toISOString().slice(0, 10)}`),
       supervisor: safeText(r.shift.supervisor.fullName),
-      location: safeText(r.location.value),
+      location: safeText(r.location?.value ?? r.locationText ?? ''),
       locationDetail: safeText(r.locationDetail),
       category: safeText(r.category.value),
       severity: SEVERITY_LABELS[r.severity as Severity],

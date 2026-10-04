@@ -69,8 +69,8 @@ describe('buildUpdateEvents', () => {
 })
 
 describe('formatIncidentRef', () => {
-  it('zero-pads to four digits', () => {
-    expect(formatIncidentRef(2026, 7)).toBe('INC-2026-0007')
-    expect(formatIncidentRef(2026, 12345)).toBe('INC-2026-12345')
+  it('pads to four digits and grows beyond', () => {
+    expect(formatIncidentRef('INC', 2026, 7)).toBe('INC-2026-0007')
+    expect(formatIncidentRef('MWB', 2026, 12345)).toBe('MWB-2026-12345')
   })
 })

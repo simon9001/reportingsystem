@@ -1,6 +1,7 @@
 export * from './constants'
 export * from './dates'
 export * from './dto'
+export * from './incidentPlace'
 export * from './schemas/common'
 export * from './schemas/auth'
 export * from './schemas/users'

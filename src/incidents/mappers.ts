@@ -1,11 +1,13 @@
 import {
   localDateString, toDateString,
-  type EscalationResult, type IncidentDto, type IncidentEventKind, type IncidentListItemDto, type IncidentStatus, type Severity,
+  type EscalationResult, type IncidentDto, type IncidentEventKind, type IncidentListItemDto, type IncidentSide, type IncidentStatus, type LinkStatus, type Severity, type VehicleStatus,
 } from '@sr/shared'
 import type { Prisma } from '../generated/prisma/client'
 
 export const listInclude = {
   location: true,
+  vehicle: true,
+  platform: true,
   category: true,
   reportedBy: true,
   shift: { include: { definition: true, supervisor: true, officer: true } },
@@ -28,14 +30,21 @@ export function toIncidentListItem(r: IncidentListRow): IncidentListItemDto {
   return {
     id: r.id,
     ref: r.ref,
+    side: r.side as IncidentSide,
     occurredAt: r.occurredAt.toISOString(),
     shiftId: r.shiftId,
     shiftDate: toDateString(r.shift.shiftDate),
     shiftCode: r.shift.definition.code,
     shiftName: r.shift.definition.name,
     supervisorName: r.shift.supervisor.fullName,
-    location: { id: r.location.id, value: r.location.value },
+    location: r.location ? { id: r.location.id, value: r.location.value } : null,
     locationDetail: r.locationDetail,
+    locationText: r.locationText,
+    vehicle: r.vehicle ? { id: r.vehicle.id, unitId: r.vehicle.unitId } : null,
+    vehicleStatus: r.vehicleStatus as VehicleStatus | null,
+    gpsStatus: r.gpsStatus as LinkStatus | null,
+    dashcamStatus: r.dashcamStatus as LinkStatus | null,
+    platform: r.platform ? { id: r.platform.id, value: r.platform.value } : null,
     category: { id: r.category.id, value: r.category.value },
     severity: r.severity as Severity,
     status: r.status as IncidentStatus,
@@ -56,6 +65,7 @@ export function toIncidentDto(r: IncidentDetailRow, ctx: { canEdit: boolean; act
     assignedTo: r.assignedTo,
     resolvedAt: iso(r.resolvedAt),
     resolution: r.resolution,
+    remarks: r.remarks,
     minutesToResolve: r.minutesToResolve,
     officerName: r.shift.officer.fullName,
     afterMidnight: localDateString(r.occurredAt, ctx.timeZone) !== toDateString(r.shift.shiftDate),
