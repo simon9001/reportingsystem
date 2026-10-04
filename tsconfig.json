@@ -8,7 +8,17 @@
     "skipLibCheck": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src", "test", "prisma", "scripts", "prisma.config.ts", "vitest.config.ts"]
+  "include": [
+    "src",
+    "test",
+    "prisma",
+    "scripts",
+    "prisma.config.ts",
+    "vitest.config.ts",
+    "shared"
+  ]
 }

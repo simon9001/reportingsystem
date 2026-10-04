@@ -26,3 +26,13 @@ lerna-debug.log*
 
 # misc
 .DS_Store
+
+# never commit secrets, generated client or uploaded files
+.env.*
+!.env.example
+!.env.test.example
+src/generated/
+uploads/
+uploads-test/
+reports/
+coverage/

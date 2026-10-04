@@ -22,7 +22,7 @@
     "@node-rs/argon2": "^2.2.1",
     "@prisma/adapter-mssql": "7.10.0",
     "@prisma/client": "7.10.0",
-    "@sr/shared": "workspace:*",
+    "@sr/shared": "link:./shared",
     "date-fns": "^4.4.0",
     "dotenv": "^18.0.5",
     "exceljs": "^4.4.0",
@@ -37,5 +37,18 @@
     "tsx": "^4.23.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
+  },
+  "packageManager": "pnpm@10.17.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "prisma",
+      "@prisma/engines",
+      "@prisma/client",
+      "@node-rs/argon2"
+    ]
   }
 }

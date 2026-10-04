@@ -1,0 +1,51 @@
+# Render Blueprint for the API. In Render: New → Blueprint → pick this repo.
+# Secrets marked "sync: false" are asked for once in the Render dashboard; never put them in this file.
+services:
+  - type: web
+    name: shiftreporting-api
+    runtime: node
+    plan: starter # the free plan sleeps after 15 min idle (drops live updates) and cannot have a disk
+    buildCommand: pnpm install --frozen-lockfile && pnpm db:generate && pnpm db:deploy && pnpm db:seed
+    startCommand: pnpm start
+    healthCheckPath: /api/health
+    disk:
+      name: uploads
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: SR_PORT
+        value: "10000"
+      - key: SR_UPLOAD_DIR
+        value: /var/data/uploads
+      - key: SR_APP_TIMEZONE
+        value: Africa/Nairobi
+      - key: SR_COOKIE_SECURE
+        value: "true"
+      - key: SR_TRUST_PROXY
+        value: "true"
+      - key: SR_SESSION_HOURS
+        value: "12"
+      - key: SR_APP_BASE_URL # your Vercel address, e.g. https://shiftreporting.vercel.app
+        sync: false
+      - key: DB_SERVER # e.g. yourserver.database.windows.net
+        sync: false
+      - key: DB_DATABASE
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_PORT
+        value: "1433"
+      - key: DB_ENCRYPT
+        value: "true"
+      - key: DB_TRUST_SERVER_CERTIFICATE
+        value: "false"
+      - key: SR_SEED_ADMIN_EMAIL
+        sync: false
+      - key: SR_SEED_ADMIN_NAME
+        value: System Administrator
+      - key: SR_SEED_ADMIN_PASSWORD # first sign-in forces a change
+        sync: false
