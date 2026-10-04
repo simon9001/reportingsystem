@@ -87,9 +87,14 @@ describe('incident explorer', () => {
     expect(String(wb.getWorksheet('About')!.getRow(4).getCell(1).value)).toContain('Only the first 1 matching')
   })
 
-  it('neutralises spreadsheet formulas', () => {
+  it('neutralises spreadsheet formulas without mangling ordinary text', () => {
     expect(safeText('=HYPERLINK("x")')).toBe("'=HYPERLINK(\"x\")")
-    expect(safeText('-1+1')).toBe("'-1+1")
+    expect(safeText('  =1+1')).toBe("'  =1+1")
+    expect(safeText('\t=cmd')).toBe("'\t=cmd")
+    expect(safeText('\r\n=cmd')).toBe("'\r\n=cmd")
+    expect(safeText('-ve reading on camera 4')).toBe('-ve reading on camera 4')
+    expect(safeText('+254 700 000000')).toBe('+254 700 000000')
+    expect(safeText('@ICT desk')).toBe('@ICT desk')
     expect(safeText('Camera')).toBe('Camera')
     expect(safeText(null)).toBeNull()
   })

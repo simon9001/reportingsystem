@@ -12,7 +12,7 @@ export const eventsRoutes = new Hono<AppEnv>()
 
 eventsRoutes.get('/', requireAuth({ allowPasswordChange: true }), (c) => {
   const sessionId = c.get('sessionId')
-  return streamSSE(c, async (stream) => {
+  const res = streamSSE(c, async (stream) => {
     const pending: LiveTopic[] = []
     let wake: (() => void) | null = null
     const unsubscribe = subscribe((topics) => {
@@ -59,4 +59,8 @@ eventsRoutes.get('/', requireAuth({ allowPasswordChange: true }), (c) => {
       unsubscribe()
     }
   })
+  // Keep reverse proxies (IIS ARR, nginx) and compression from buffering the stream; streamSSE only sets no-cache.
+  res.headers.set('Cache-Control', 'no-cache, no-transform')
+  res.headers.set('X-Accel-Buffering', 'no')
+  return res
 })

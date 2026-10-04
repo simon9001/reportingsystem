@@ -42,6 +42,8 @@ describe('live updates', () => {
     const res = await call(app, 'GET', '/api/events', { cookie })
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toContain('text/event-stream')
+    expect(res.headers.get('cache-control')).toBe('no-cache, no-transform')
+    expect(res.headers.get('x-accel-buffering')).toBe('no')
     const reader = res.body!.getReader()
     await readUntil(reader, 'event: ready')
     publish('incidents')

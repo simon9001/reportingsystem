@@ -77,7 +77,19 @@ describe('incident snapshots', () => {
     expect((await upload(incident.id, dd.cookie, [{ name: 'big.png', data: big }])).status).toBe(403)
     const { attachments } = (await (await upload(incident.id, cookie, [{ name: 'r.pdf', data: PDF }])).json()) as UploadResultDto
     const pdf = await call(app, 'GET', attachments[0]!.url, { cookie })
+    expect(pdf.status).toBe(200)
     expect(pdf.headers.get('content-security-policy')).toBe("sandbox; default-src 'none'")
+    expect(pdf.headers.get('content-type')).toBe('application/pdf')
+    expect(pdf.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(pdf.headers.get('content-disposition')).toBe("inline; filename*=UTF-8''r.pdf")
+  })
+
+  it('serves images inline with their detected type and nosniff', async () => {
+    const { attachments } = (await (await upload(incident.id, cookie, [{ name: 'cam 4.png', data: PNG }])).json()) as UploadResultDto
+    const img = await call(app, 'GET', attachments[0]!.url, { cookie })
+    expect(img.headers.get('content-type')).toBe('image/png')
+    expect(img.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(img.headers.get('content-disposition')).toBe("inline; filename*=UTF-8''cam%204.png")
   })
 
   it('limits snapshots to 10 per incident', async () => {

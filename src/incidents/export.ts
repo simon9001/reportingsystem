@@ -55,7 +55,7 @@ export async function buildIncidentWorkbook(q: IncidentQuery, limit = EXPORT_LIM
     const row = ws.addRow({
       ref: r.ref,
       occurredAt: wallClock(r.occurredAt),
-      shift: `${r.shift.definition.name} ${r.shift.shiftDate.toISOString().slice(0, 10)}`,
+      shift: safeText(`${r.shift.definition.name} ${r.shift.shiftDate.toISOString().slice(0, 10)}`),
       supervisor: safeText(r.shift.supervisor.fullName),
       location: safeText(r.location.value),
       locationDetail: safeText(r.locationDetail),
@@ -81,9 +81,12 @@ export async function buildIncidentWorkbook(q: IncidentQuery, limit = EXPORT_LIM
   return { buffer: Buffer.from(await wb.xlsx.writeBuffer()), truncated }
 }
 
-/** Neutralises spreadsheet formulas: text starting with = + - @ tab or CR is prefixed with a quote. */
+/**
+ * Neutralises spreadsheet formulas: text whose first non-blank character is = is prefixed with a quote.
+ * Leading -, + and @ are left alone so readings like "-ve" and phone numbers like "+254…" stay as typed.
+ */
 export function safeText(v: string | null): string | null {
-  return v !== null && /^[=+\-@\t\r]/.test(v) ? `'${v}` : v
+  return v !== null && /^[\s]*=/.test(v) ? `'${v}` : v
 }
 
 function addAbout(wb: ExcelJS.Workbook, q: IncidentQuery, count: number, truncated: boolean, limit: number) {
