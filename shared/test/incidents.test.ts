@@ -49,6 +49,13 @@ describe('incidentQuerySchema', () => {
     expect(q.pageSize).toBe(25)
   })
 
+  it('parses side and mobile filters', () => {
+    const q = incidentQuerySchema.parse({ side: 'MOBILE', vehicleId: '7,8', platformId: '2', gpsStatus: 'OFFLINE,UNKNOWN', sort: '-side' })
+    expect(q).toMatchObject({ side: 'MOBILE', vehicleId: [7, 8], platformId: [2], gpsStatus: ['OFFLINE', 'UNKNOWN'], sort: '-side' })
+    expect(incidentQuerySchema.safeParse({ side: 'BOTH' }).success).toBe(false)
+    expect(incidentQuerySchema.safeParse({ dashcamStatus: 'BROKEN' }).success).toBe(false)
+  })
+
   it('rejects bad values', () => {
     expect(incidentQuerySchema.safeParse({ severity: 'URGENT' }).success).toBe(false)
     expect(incidentQuerySchema.safeParse({ pageSize: '30' }).success).toBe(false)

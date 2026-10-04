@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { INCIDENT_STATUSES, LINK_STATUSES, RESOLVED_STATUSES, SEVERITIES, VEHICLE_STATUSES, type IncidentStatus } from '../constants'
+import { INCIDENT_SIDES, INCIDENT_STATUSES, LINK_STATUSES, RESOLVED_STATUSES, SEVERITIES, VEHICLE_STATUSES, type IncidentStatus } from '../constants'
 import { daysBetween } from '../dates'
 import { dateStringSchema, idSchema } from './common'
 
@@ -91,7 +91,7 @@ const csv = <T extends z.ZodType>(item: T) =>
 /** Far beyond any real result set; keeps OFFSET arithmetic within safe integers. */
 export const MAX_PAGE = 100_000
 
-export const INCIDENT_SORTS = ['occurredAt', '-occurredAt', 'severity', '-severity', 'status', '-status', 'ref', '-ref'] as const
+export const INCIDENT_SORTS = ['occurredAt', '-occurredAt', 'severity', '-severity', 'status', '-status', 'ref', '-ref', 'side', '-side'] as const
 
 export const incidentQuerySchema = z
   .object({
@@ -106,6 +106,12 @@ export const incidentQuerySchema = z
     shiftId: idSchema.optional(),
     hasAttachments: z.enum(['true', 'false']).optional(),
     reportedById: idSchema.optional(),
+    side: z.enum(INCIDENT_SIDES).optional(),
+    vehicleId: csv(idSchema),
+    platformId: csv(idSchema),
+    vehicleStatus: csv(z.enum(VEHICLE_STATUSES)),
+    gpsStatus: csv(z.enum(LINK_STATUSES)),
+    dashcamStatus: csv(z.enum(LINK_STATUSES)),
     sort: z.enum(INCIDENT_SORTS).default('-occurredAt'),
     page: z.coerce.number().int().min(1).max(MAX_PAGE).default(1),
     pageSize: z.coerce.number().int().refine((n) => [25, 50, 100].includes(n), 'Page size must be 25, 50 or 100').default(25),

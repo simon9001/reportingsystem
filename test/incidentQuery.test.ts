@@ -62,8 +62,8 @@ describe('incident explorer', () => {
     expect(res.headers.get('content-type')).toContain('spreadsheetml')
     const wb = new ExcelJS.Workbook()
     await wb.xlsx.load(await res.arrayBuffer())
-    const ws = wb.getWorksheet('Incidents')!
-    expect(ws.getRow(1).getCell(1).value).toBe('Incident')
+    const ws = wb.getWorksheet('Static weighbridges')!
+    expect(ws.getRow(1).getCell(1).value).toBe('Incident ID')
     expect(ws.rowCount).toBe(3) // header + 2
     const officer = await loginAs(app, 'OFFICER')
     expect((await call(app, 'GET', '/api/incidents/export.xlsx', { cookie: officer.cookie })).status).toBe(403)
@@ -83,7 +83,7 @@ describe('incident explorer', () => {
     expect(truncated).toBe(true)
     const wb = new ExcelJS.Workbook()
     await wb.xlsx.load(buffer as unknown as ArrayBuffer)
-    expect(wb.getWorksheet('Incidents')!.rowCount).toBe(2)
+    expect(wb.getWorksheet('Static weighbridges')!.rowCount).toBe(2)
     expect(String(wb.getWorksheet('About')!.getRow(4).getCell(1).value)).toContain('Only the first 1 matching')
   })
 
@@ -97,5 +97,73 @@ describe('incident explorer', () => {
     expect(safeText('@ICT desk')).toBe('@ICT desk')
     expect(safeText('Camera')).toBe('Camera')
     expect(safeText(null)).toBeNull()
+  })
+})
+
+describe('static and mobile weighbridges in the explorer', () => {
+  let world: Awaited<ReturnType<typeof setupIncidentWorld>>
+  let cookie: string
+  const get = async (qs: string) => (await (await call(app, 'GET', `/api/incidents?${qs}`, { cookie })).json()) as Paged<IncidentListItemDto>
+
+  beforeEach(async () => {
+    resetIncidentSeq()
+    await resetDb()
+    world = await setupIncidentWorld()
+    cookie = (await loginAs(app, 'DEPUTY_DIRECTOR')).cookie
+    await insertIncident(world, { occurredAt: '2026-08-30T08:00:00.000Z', severity: 'HIGH', description: 'Camera WB04 went offline' })
+    await insertIncident(world, {
+      occurredAt: '2026-08-30T09:00:00.000Z', side: 'MOBILE', severity: 'MEDIUM', description: 'Inside camera blank', locationText: 'Mlolongo',
+      gpsStatus: 'OFFLINE', remarks: 'CH3 rainbow colours',
+    })
+    await insertIncident(world, {
+      occurredAt: '2026-08-30T10:00:00.000Z', side: 'MOBILE', vehicleUnitId: 'KCB 220T', platformValue: 'MettaX', locationValue: 'Mombasa Road',
+      dashcamStatus: 'UNKNOWN', vehicleStatus: 'OFFLINE',
+    })
+  })
+
+  it('filters by side and by the mobile fields', async () => {
+    expect((await get('side=STATIC')).total).toBe(1)
+    expect((await get('side=MOBILE')).total).toBe(2)
+    expect((await get(`vehicleId=${world.vehicle2.id}`)).total).toBe(1)
+    expect((await get(`platformId=${world.platform.id}`)).total).toBe(1)
+    expect((await get('gpsStatus=OFFLINE')).total).toBe(1)
+    expect((await get('dashcamStatus=UNKNOWN')).total).toBe(1)
+    expect((await get('vehicleStatus=OFFLINE')).total).toBe(1)
+  })
+
+  it('finds incidents by unit ID, typed place and remarks', async () => {
+    expect((await get('q=KDG 143S')).total).toBe(1)
+    expect((await get('q=mlolongo')).total).toBe(1)
+    expect((await get('q=rainbow')).total).toBe(1)
+  })
+
+  it('sorts by side', async () => {
+    expect((await get('sort=side')).items.map((i) => i.side)).toEqual(['MOBILE', 'MOBILE', 'STATIC'])
+  })
+
+  it('exports one sheet per side, in the column order of the Excel register', async () => {
+    const wb = new ExcelJS.Workbook()
+    await wb.xlsx.load(await (await call(app, 'GET', '/api/incidents/export.xlsx?from=2026-08-30&to=2026-08-30', { cookie })).arrayBuffer())
+    const stat = wb.getWorksheet('Static weighbridges')!
+    const mob = wb.getWorksheet('Mobile weighbridges')!
+    expect(stat.rowCount).toBe(2)
+    expect(mob.rowCount).toBe(3)
+    expect((mob.getRow(1).values as unknown[]).slice(1)).toEqual([
+      'Incident ID', 'Date', 'Time', 'Shift', 'Shift Date', 'Vehicle / Unit ID', 'Location', 'Vehicle Status', 'GPS Status', 'Dashcam Status',
+      'Platform', 'Event / Incident', 'Action Taken', 'Remarks', 'Logged By', 'Category', 'Severity', 'Notified / Escalated To', 'Escalated At',
+      'Assigned To', 'Status', 'Resolved At', 'Resolution', 'Evidence', 'Time to Resolve (min)', 'Escalation Check',
+    ])
+    expect((stat.getRow(1).values as unknown[]).slice(1)).toEqual([
+      'Incident ID', 'Date', 'Time', 'Shift', 'Shift Date', 'Location', 'Category', 'Severity', 'Reported By', 'Description', 'Immediate Action',
+      'Notified / Escalated To', 'Escalated At', 'Assigned To', 'Status', 'Resolved At', 'Resolution / Handover', 'Evidence',
+      'Time to Resolve (min)', 'Escalation Check',
+    ])
+    const units = [mob.getRow(2).getCell(6).value, mob.getRow(3).getCell(6).value].sort()
+    expect(units).toEqual(['KCB 220T', 'KDG 143S'])
+    const onlyMobile = new ExcelJS.Workbook()
+    await onlyMobile.xlsx.load(await (await call(app, 'GET', '/api/incidents/export.xlsx?side=MOBILE', { cookie })).arrayBuffer())
+    expect(onlyMobile.getWorksheet('Static weighbridges')).toBeUndefined()
+    expect(onlyMobile.getWorksheet('Mobile weighbridges')!.rowCount).toBe(3)
+    expect(String(onlyMobile.getWorksheet('About')!.getRow(2).getCell(1).value)).toContain('side MOBILE')
   })
 })

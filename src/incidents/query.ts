@@ -19,6 +19,12 @@ export function buildIncidentWhere(q: IncidentQuery, tz = env.SR_APP_TIMEZONE): 
     ...(q.shiftCode ? { shiftCode: q.shiftCode } : {}),
     ...(q.shiftId ? { shiftId: q.shiftId } : {}),
     ...(q.reportedById ? { reportedById: q.reportedById } : {}),
+    ...(q.side ? { side: q.side } : {}),
+    ...(q.vehicleId ? { vehicleId: { in: q.vehicleId } } : {}),
+    ...(q.platformId ? { platformId: { in: q.platformId } } : {}),
+    ...(q.vehicleStatus ? { vehicleStatus: { in: q.vehicleStatus } } : {}),
+    ...(q.gpsStatus ? { gpsStatus: { in: q.gpsStatus } } : {}),
+    ...(q.dashcamStatus ? { dashcamStatus: { in: q.dashcamStatus } } : {}),
     ...(q.hasAttachments === 'true' ? { attachments: { some: {} } } : q.hasAttachments === 'false' ? { attachments: { none: {} } } : {}),
     ...(text
       ? {
@@ -29,6 +35,10 @@ export function buildIncidentWhere(q: IncidentQuery, tz = env.SR_APP_TIMEZONE): 
             { location: { value: { contains: text } } },
             { category: { value: { contains: text } } },
             { reportedBy: { fullName: { contains: text } } },
+            { locationText: { contains: text } },
+            { remarks: { contains: text } },
+            { vehicle: { unitId: { contains: text } } },
+            { platform: { value: { contains: text } } },
           ],
         }
       : {}),
@@ -39,7 +49,11 @@ export function incidentOrderBy(sort: IncidentQuery['sort']): Prisma.IncidentOrd
   const dir = sort.startsWith('-') ? 'desc' : 'asc'
   const field = sort.replace(/^-/, '')
   const primary: Prisma.IncidentOrderByWithRelationInput =
-    field === 'severity' ? { severityRank: dir } : field === 'status' ? { status: dir } : field === 'ref' ? { ref: dir } : { occurredAt: dir }
+    field === 'severity' ? { severityRank: dir }
+      : field === 'status' ? { status: dir }
+        : field === 'ref' ? { ref: dir }
+          : field === 'side' ? { side: dir }
+            : { occurredAt: dir }
   return [primary, { id: 'desc' }]
 }
 

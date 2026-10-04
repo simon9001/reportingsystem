@@ -22,7 +22,7 @@ incidentsRoutes.get('/', requireAuth(), async (c) => c.json(await listIncidents(
 incidentsRoutes.get('/export.xlsx', requireRole('DEPUTY_DIRECTOR', 'ADMIN'), async (c) => {
   const q = parseQuery(c, incidentQuerySchema)
   const { buffer: buf, truncated } = await buildIncidentWorkbook(q)
-  const name = `incidents${q.from ? `-${q.from}` : ''}${q.to ? `-to-${q.to}` : ''}.xlsx`
+  const name = `incidents${q.side ? `-${q.side.toLowerCase()}` : ''}${q.from ? `-${q.from}` : ''}${q.to ? `-to-${q.to}` : ''}.xlsx`
   return c.body(new Uint8Array(buf), 200, {
     'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'Content-Disposition': `attachment; filename="${name}"`,
