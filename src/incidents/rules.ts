@@ -46,6 +46,13 @@ export interface IncidentSnapshot {
   status: IncidentStatus
   resolvedAt: string | null
   resolution: string | null
+  locationText: string | null
+  vehicleId: number | null
+  vehicleStatus: string | null
+  gpsStatus: string | null
+  dashcamStatus: string | null
+  platformId: number | null
+  remarks: string | null
 }
 
 const FIELD_LABELS: Record<keyof IncidentSnapshot, string> = {
@@ -62,6 +69,13 @@ const FIELD_LABELS: Record<keyof IncidentSnapshot, string> = {
   status: 'status',
   resolvedAt: 'resolution time',
   resolution: 'resolution',
+  locationText: 'location',
+  vehicleId: 'vehicle / unit',
+  vehicleStatus: 'vehicle status',
+  gpsStatus: 'GPS status',
+  dashcamStatus: 'dashcam status',
+  platformId: 'platform',
+  remarks: 'remarks',
 }
 
 const truncate = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
@@ -90,6 +104,7 @@ export function buildUpdateEvents(
   }
   if (before.escalatedTo && !after.escalatedTo) events.push({ kind: 'UPDATED', summary: 'Escalation removed' })
   const changed = (Object.keys(FIELD_LABELS) as (keyof IncidentSnapshot)[]).filter((k) => !handled.has(k) && before[k] !== after[k])
-  if (changed.length > 0) events.push({ kind: 'UPDATED', summary: truncate(`Updated ${changed.map((k) => FIELD_LABELS[k]).join(', ')}`, 300) })
+  const labels = [...new Set(changed.map((k) => FIELD_LABELS[k]))]
+  if (labels.length > 0) events.push({ kind: 'UPDATED', summary: truncate(`Updated ${labels.join(', ')}`, 300) })
   return events
 }

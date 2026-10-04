@@ -116,3 +116,24 @@ export async function insertIncident(
     },
   })
 }
+
+export function mobileBody(world: Awaited<ReturnType<typeof setupIncidentWorld>>, overrides: Record<string, unknown> = {}) {
+  return {
+    side: 'MOBILE',
+    occurredAt: new Date(Date.now() - 30 * 60_000).toISOString(),
+    vehicleId: world.vehicle.id,
+    locationText: 'Mlolongo',
+    vehicleStatus: 'ONLINE',
+    gpsStatus: 'ONLINE',
+    dashcamStatus: 'OFFLINE',
+    platformId: world.platform.id,
+    categoryId: world.category.id,
+    severity: 'MEDIUM',
+    description: 'The inside camera is blank',
+    immediateAction: 'Notified fleet manager',
+    remarks: 'CH3 camera is showing rainbow colours',
+    status: 'OPEN',
+    ...overrides,
+  }
+}
+

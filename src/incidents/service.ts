@@ -64,6 +64,23 @@ async function assertLookup(db: Db, id: number, listType: LookupType, field: str
   if (!ok) throw new AppError('VALIDATION_ERROR', `Choose a valid ${label}`, { [field]: `Choose a valid ${label}` })
 }
 
+async function assertVehicle(id: number, keepId?: number | null) {
+  const v = await prisma.vehicle.findUnique({ where: { id } })
+  if (!v || !(v.isActive || id === keepId)) {
+    throw new AppError('VALIDATION_ERROR', 'Choose a valid vehicle / unit', { vehicleId: 'Choose a valid vehicle / unit' })
+  }
+}
+
+/** Every referenced list item must exist in the right list and be active, unless it is the value already stored. */
+async function assertReferences(input: IncidentInputParsed, existing?: { locationId: number | null; categoryId: number; vehicleId: number | null; platformId: number | null }) {
+  if (input.locationId) await assertLookup(prisma, input.locationId, 'LOCATION', 'locationId', 'location', existing?.locationId)
+  await assertLookup(prisma, input.categoryId, 'CATEGORY', 'categoryId', 'category', existing?.categoryId)
+  if (input.side === 'MOBILE') {
+    await assertLookup(prisma, input.platformId, 'PLATFORM', 'platformId', 'platform', existing?.platformId)
+    await assertVehicle(input.vehicleId, existing?.vehicleId)
+  }
+}
+
 async function resolveShiftFor(occurredAt: Date): Promise<ShiftWithPeople> {
   const shift = await findShiftAt(occurredAt)
   if (!shift) throw new AppError('NO_ROSTER', NO_ROSTER_MESSAGE, { occurredAt: NO_ROSTER_MESSAGE })
@@ -75,13 +92,22 @@ async function buildData(input: IncidentInputParsed, shift: ShiftWithPeople, occ
   const escalatedAt = input.escalatedAt ? new Date(input.escalatedAt) : null
   const resolvedAt = isResolvedStatus(input.status) && input.resolvedAt ? new Date(input.resolvedAt) : null
   const computed = computeIncidentFields({ occurredAt, escalatedTo: input.escalatedTo, escalatedAt, resolvedAt }, rule)
+  const sideFields = input.side === 'STATIC'
+    ? {
+        side: 'STATIC', locationId: input.locationId, locationDetail: input.locationDetail, locationText: null,
+        vehicleId: null, vehicleStatus: null, gpsStatus: null, dashcamStatus: null, platformId: null, remarks: null,
+      }
+    : {
+        side: 'MOBILE', locationId: input.locationId, locationDetail: null, locationText: input.locationText,
+        vehicleId: input.vehicleId, vehicleStatus: input.vehicleStatus, gpsStatus: input.gpsStatus, dashcamStatus: input.dashcamStatus,
+        platformId: input.platformId, remarks: input.remarks,
+      }
   return {
     shiftId: shift.id,
     shiftCode: shift.definition.code,
     occurredAt,
     occurredLocalDate: fromDateString(localDateString(occurredAt, env.SR_APP_TIMEZONE)),
-    locationId: input.locationId,
-    locationDetail: input.locationDetail,
+    ...sideFields,
     categoryId: input.categoryId,
     severity: input.severity,
     severityRank: SEVERITY_RANK[input.severity],
@@ -111,6 +137,13 @@ interface SnapshotSource {
   status: string
   resolvedAt: Date | null
   resolution: string | null
+  locationText: string | null
+  vehicleId: number | null
+  vehicleStatus: string | null
+  gpsStatus: string | null
+  dashcamStatus: string | null
+  platformId: number | null
+  remarks: string | null
 }
 
 function snapshotOf(d: SnapshotSource): IncidentSnapshot {
@@ -128,6 +161,13 @@ function snapshotOf(d: SnapshotSource): IncidentSnapshot {
     status: d.status as IncidentSnapshot['status'],
     resolvedAt: d.resolvedAt?.toISOString() ?? null,
     resolution: d.resolution,
+    locationText: d.locationText,
+    vehicleId: d.vehicleId,
+    vehicleStatus: d.vehicleStatus,
+    gpsStatus: d.gpsStatus,
+    dashcamStatus: d.dashcamStatus,
+    platformId: d.platformId,
+    remarks: d.remarks,
   }
 }
 
@@ -152,18 +192,17 @@ export async function createIncident(actor: SessionUser, input: IncidentInputPar
   if (!canEditIncident(actor, shift, await editableShiftIds(now))) {
     throw new AppError('FORBIDDEN', 'You can only log incidents for your current or previous shift')
   }
-  await assertLookup(prisma, input.locationId, 'LOCATION', 'locationId', 'location')
-  await assertLookup(prisma, input.categoryId, 'CATEGORY', 'categoryId', 'category')
+  await assertReferences(input)
   const data = await buildData(input, shift, occurredAt)
 
   const id = await prisma.$transaction(async (tx) => {
-    const ref = await nextIncidentRef(tx, occurredAt)
+    const ref = await nextIncidentRef(tx, occurredAt, input.side)
     const row = await tx.incident.create({ data: { ...data, ref, reportedById: actor.id, createdById: actor.id, updatedById: actor.id } })
     const events = [{ kind: 'CREATED', summary: `Logged by ${actor.fullName}` }]
     if (row.escalatedTo) events.push({ kind: 'ESCALATED', summary: escalationSummary(row.escalatedTo, row.escalatedAt?.toISOString() ?? null, fmtTime) })
     if (isResolvedStatus(input.status)) events.push({ kind: 'RESOLVED', summary: input.resolution ? `Resolved: ${input.resolution}`.slice(0, 300) : 'Resolved' })
     await tx.incidentEvent.createMany({ data: events.map((e) => ({ ...e, incidentId: row.id, userId: actor.id })) })
-    await writeAudit(tx, { userId: actor.id, entity: 'Incident', entityId: row.id, action: 'CREATE', after: { ref, ...snapshotOf(data) }, ip })
+    await writeAudit(tx, { userId: actor.id, entity: 'Incident', entityId: row.id, action: 'CREATE', after: { ref, side: data.side, ...snapshotOf(data) }, ip })
     return row.id
   })
   publish('incidents', 'audit')
@@ -176,6 +215,9 @@ export async function updateIncident(actor: SessionUser, id: number, input: Inci
   if (!existing) throw new AppError('NOT_FOUND', 'Incident not found')
   const editable = await editableShiftIds(now)
   if (!canEditIncident(actor, existing.shift, editable)) throw new AppError('FORBIDDEN', 'You can no longer edit this incident')
+  if (input.side !== existing.side) {
+    throw new AppError('VALIDATION_ERROR', 'The side cannot be changed', { side: 'The side cannot be changed' })
+  }
 
   const occurredAt = new Date(input.occurredAt)
   assertNotFuture(occurredAt, now)
@@ -184,8 +226,7 @@ export async function updateIncident(actor: SessionUser, id: number, input: Inci
     shift = await resolveShiftFor(occurredAt)
     if (!canEditIncident(actor, shift, editable)) throw new AppError('FORBIDDEN', 'You can only move an incident to your current or previous shift')
   }
-  await assertLookup(prisma, input.locationId, 'LOCATION', 'locationId', 'location', existing.locationId)
-  await assertLookup(prisma, input.categoryId, 'CATEGORY', 'categoryId', 'category', existing.categoryId)
+  await assertReferences(input, existing)
   const data = await buildData(input, shift, occurredAt)
   const before = snapshotOf(existing)
   const after = snapshotOf(data)

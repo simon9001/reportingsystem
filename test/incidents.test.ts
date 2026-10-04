@@ -4,7 +4,7 @@ import { createApp } from '../src/app'
 import { prisma } from '../src/lib/prisma'
 import { resetDb } from './db'
 import { call, login, loginAs } from './factories'
-import { incidentBody, insertIncident, setupIncidentWorld } from './incidentFixtures'
+import { incidentBody, insertIncident, mobileBody, setupIncidentWorld } from './incidentFixtures'
 
 const app = createApp()
 const HOUR = 3_600_000
@@ -193,5 +193,79 @@ describe('incident register', () => {
     expect(m.vehicle?.unitId).toBe('KDG 143S')
     expect(m.platform?.value).toBe('Tracksolid')
     expect(m.ref).toMatch(/^MWB-/)
+  })
+})
+
+describe('mobile weighbridge incidents', () => {
+  let world: Awaited<ReturnType<typeof setupIncidentWorld>>
+  let supCookie: string
+  const post = (body: unknown, cookie = supCookie) => call(app, 'POST', '/api/incidents', { cookie, body })
+  const fieldsOf = async (res: Response) => ((await res.json()) as { error: { fields?: Record<string, string> } }).error.fields ?? {}
+
+  beforeEach(async () => {
+    await resetDb()
+    world = await setupIncidentWorld()
+    supCookie = await login(app, world.supervisor.email)
+  })
+
+  it('logs a mobile incident with its own MWB number, leaving static numbering alone', async () => {
+    const stat = (await (await post(incidentBody(world))).json()) as IncidentDto
+    const res = await post(mobileBody(world))
+    expect(res.status).toBe(201)
+    const dto = (await res.json()) as IncidentDto
+    expect(stat.ref).toMatch(/^INC-\d{4}-0001$/)
+    expect(dto.ref).toMatch(/^MWB-\d{4}-0001$/)
+    expect(dto).toMatchObject({
+      side: 'MOBILE', locationText: 'Mlolongo', location: null, vehicleStatus: 'ONLINE', gpsStatus: 'ONLINE', dashcamStatus: 'OFFLINE',
+      remarks: 'CH3 camera is showing rainbow colours', immediateAction: 'Notified fleet manager', locationDetail: null,
+    })
+    expect(dto.vehicle?.unitId).toBe('KDG 143S')
+    expect(dto.platform?.value).toBe('Tracksolid')
+    expect(dto.events.map((e) => e.kind)).toEqual(['CREATED'])
+  })
+
+  it('accepts a listed place instead of a typed one', async () => {
+    const res = await post(mobileBody(world, { locationText: null, locationId: world.location.id }))
+    expect(res.status).toBe(201)
+    expect(((await res.json()) as IncidentDto).location?.id).toBe(world.location.id)
+  })
+
+  it('refuses inactive vehicles for new incidents and platforms that are not platforms', async () => {
+    const inactive = await post(mobileBody(world, { vehicleId: world.inactiveVehicle.id }))
+    expect(inactive.status).toBe(400)
+    expect((await fieldsOf(inactive)).vehicleId).toBe('Choose a valid vehicle / unit')
+    const wrongList = await post(mobileBody(world, { platformId: world.category.id }))
+    expect(wrongList.status).toBe(400)
+    expect((await fieldsOf(wrongList)).platformId).toBe('Choose a valid platform')
+  })
+
+  it('still saves edits to an incident whose vehicle was deactivated later', async () => {
+    const created = (await (await post(mobileBody(world))).json()) as IncidentDto
+    await prisma.vehicle.update({ where: { id: world.vehicle.id }, data: { isActive: false } })
+    const res = await call(app, 'PATCH', `/api/incidents/${created.id}`, { cookie: supCookie, body: mobileBody(world, { occurredAt: created.occurredAt, status: 'MONITORING' }) })
+    expect(res.status).toBe(200)
+  })
+
+  it('never lets an edit change the side', async () => {
+    const created = (await (await post(mobileBody(world))).json()) as IncidentDto
+    const flipped = await call(app, 'PATCH', `/api/incidents/${created.id}`, { cookie: supCookie, body: incidentBody(world, { occurredAt: created.occurredAt }) })
+    expect(flipped.status).toBe(400)
+    expect((await fieldsOf(flipped)).side).toBe('The side cannot be changed')
+  })
+
+  it('records mobile field changes in the timeline', async () => {
+    const created = (await (await post(mobileBody(world))).json()) as IncidentDto
+    const res = await call(app, 'PATCH', `/api/incidents/${created.id}`, {
+      cookie: supCookie, body: mobileBody(world, { occurredAt: created.occurredAt, gpsStatus: 'OFFLINE', remarks: 'GPS lost near Athi River' }),
+    })
+    const dto = (await res.json()) as IncidentDto
+    expect(dto.events.at(-1)?.summary).toBe('Updated GPS status, remarks')
+  })
+
+  it('keeps the same permissions as static incidents', async () => {
+    const dd = await loginAs(app, 'DEPUTY_DIRECTOR')
+    expect((await post(mobileBody(world), dd.cookie)).status).toBe(403)
+    const other = await login(app, world.otherOfficer.email)
+    expect((await post(mobileBody(world), other)).status).toBe(403)
   })
 })

@@ -75,3 +75,44 @@ describe('analyticsQuerySchema', () => {
     expect(analyticsQuerySchema.safeParse({ from: '2025-01-01', to: '2026-09-30' }).success).toBe(false)
   })
 })
+
+describe('incidentInputSchema — weighbridge sides', () => {
+  const common = { occurredAt: '2026-09-30T22:15:00.000Z', categoryId: 5, severity: 'HIGH', description: 'Camera offline', status: 'OPEN' }
+  const mobile = { ...common, side: 'MOBILE', vehicleId: 7, locationText: 'Mlolongo', vehicleStatus: 'ONLINE', gpsStatus: 'ONLINE', dashcamStatus: 'OFFLINE', platformId: 2 }
+
+  it('treats input without a side as a static incident', () => {
+    const r = incidentInputSchema.parse({ ...common, locationId: 3 })
+    expect(r.side).toBe('STATIC')
+  })
+
+  it('accepts a mobile incident with the mobile sheet fields', () => {
+    const r = incidentInputSchema.parse({ ...mobile, remarks: '  CH3 rainbow  ' })
+    expect(r).toMatchObject({ side: 'MOBILE', vehicleId: 7, locationId: null, locationText: 'Mlolongo', remarks: 'CH3 rainbow' })
+  })
+
+  it('names each missing mobile field the way the sheet does', () => {
+    const r = incidentInputSchema.safeParse({ ...common, side: 'MOBILE' })
+    expect(r.success).toBe(false)
+    const fields = Object.fromEntries(r.error!.issues.map((i) => [i.path.join('.'), i.message]))
+    expect(fields.vehicleId).toBe('Choose the vehicle / unit')
+    expect(fields.vehicleStatus).toBe('Choose the vehicle status')
+    expect(fields.gpsStatus).toBe('Choose the GPS status')
+    expect(fields.dashcamStatus).toBe('Choose the dashcam status')
+    expect(fields.platformId).toBe('Choose the platform')
+  })
+
+  it('needs exactly one of a listed or typed place for mobile incidents', () => {
+    const neither = incidentInputSchema.safeParse({ ...mobile, locationText: null })
+    expect(neither.error?.issues.map((i) => i.message)).toContain('Enter where the unit is')
+    const both = incidentInputSchema.safeParse({ ...mobile, locationId: 3 })
+    expect(both.error?.issues.map((i) => i.message)).toContain('Pick a listed place or type one, not both')
+    expect(incidentInputSchema.safeParse({ ...mobile, locationText: null, locationId: 3 }).success).toBe(true)
+  })
+
+  it("rejects the other side's fields", () => {
+    const staticWithVehicle = incidentInputSchema.safeParse({ ...common, locationId: 3, vehicleId: 7 })
+    expect(staticWithVehicle.error?.issues[0]).toMatchObject({ path: ['vehicleId'], message: 'Only for mobile weighbridge incidents' })
+    const mobileWithDetail = incidentInputSchema.safeParse({ ...mobile, locationDetail: 'Camera 4' })
+    expect(mobileWithDetail.error?.issues[0]).toMatchObject({ path: ['locationDetail'], message: 'Only for static weighbridge incidents' })
+  })
+})
