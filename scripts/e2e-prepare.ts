@@ -17,6 +17,7 @@ await user('e2e-admin@test.local', 'E2E Administrator', 'ADMIN', 'AdminTemp2026'
 await user('e2e-dd@test.local', 'Grace Wanjiru', 'DEPUTY_DIRECTOR', 'DirectorPass2026')
 const sup = await user('e2e-sup@test.local', 'Brian Otieno', 'OFFICER', 'SupervisorPass2026')
 const off = await user('e2e-off@test.local', 'Mary Wambui', 'OFFICER', 'OfficerPass2026')
+await prisma.vehicle.create({ data: { unitId: 'KDG 143S', description: 'Mobile weighbridge unit' } })
 
 const defs = await prisma.shiftDefinition.findMany({ where: { isActive: true } })
 const now = resolveShift(new Date(), defs, env.SR_APP_TIMEZONE)

@@ -15,6 +15,15 @@ pnpm db:generate && pnpm db:deploy && pnpm db:seed
 pnpm dev                            # http://localhost:3000/api/health
 ```
 
+Optional demo data for development: `pnpm db:seed:samples` adds the mobile unit KDG 143S and the location Mlolongo.
+
+Incidents come in two kinds, following the Excel prototype:
+
+- **Static weighbridges** use the Incident Register flow and are numbered INC-YYYY-NNNN.
+- **Mobile weighbridges** use the Mobile Weighbridge flow (vehicle, GPS/dashcam status, platform) and are numbered MWB-YYYY-NNNN.
+
+Manage the mobile units under Admin → Vehicles.
+
 Tests use a separate database. Copy `.env.test.example` to `.env.test` (DB_DATABASE=shiftreporting_test), then run `pnpm test`.
 
 ## Deploy: Azure SQL Database + Render

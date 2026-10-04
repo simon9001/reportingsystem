@@ -10,6 +10,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:samples": "tsx scripts/seed-samples.ts",
     "db:test:deploy": "cross-env SR_ENV_FILE=.env.test prisma migrate deploy",
     "e2e:prepare": "cross-env SR_ENV_FILE=.env.test tsx scripts/e2e-prepare.ts",
     "e2e:server": "cross-env SR_ENV_FILE=.env.test tsx src/index.ts",
