@@ -222,7 +222,7 @@ model IncidentEvent {
   @@index([incidentId, at])
 }
 
-/// One row per year; lastNumber is incremented with MERGE ... HOLDLOCK so refs never collide.
+/// One row per prefix and year; lastNumber is incremented with MERGE ... HOLDLOCK so refs never collide.
 model IncidentSequence {
   prefix     String @default("INC") @db.NVarChar(5)
   year       Int

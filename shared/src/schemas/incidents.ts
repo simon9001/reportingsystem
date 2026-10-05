@@ -14,7 +14,7 @@ const optionalId = z.number().int().positive().max(2147483647).nullable().option
 
 const commonFields = {
   occurredAt: instant,
-  categoryId: z.number({ error: 'Choose a category' }).int().positive('Choose a category'),
+  categoryId: z.number({ error: 'Choose a category' }).int().positive('Choose a category').max(2147483647, 'Choose a category'),
   severity: z.enum(SEVERITIES, { error: 'Choose a severity' }),
   description: z.string().trim().min(3, 'Describe what happened').max(2000, 'At most 2000 characters'),
   immediateAction: optionalText(2000),
@@ -30,7 +30,7 @@ const commonFields = {
 const staticIncidentSchema = z.object({
   side: z.literal('STATIC'),
   ...commonFields,
-  locationId: z.number({ error: 'Choose a location' }).int().positive('Choose a location'),
+  locationId: z.number({ error: 'Choose a location' }).int().positive('Choose a location').max(2147483647, 'Choose a location'),
   locationDetail: optionalText(200),
   locationText: onlyMobile,
   vehicleId: onlyMobile,
@@ -46,13 +46,13 @@ const mobileIncidentSchema = z.object({
   side: z.literal('MOBILE'),
   ...commonFields,
   description: z.string().trim().min(3, 'Describe the event / incident').max(2000, 'At most 2000 characters'),
-  vehicleId: z.number({ error: 'Choose the vehicle / unit' }).int().positive('Choose the vehicle / unit'),
+  vehicleId: z.number({ error: 'Choose the vehicle / unit' }).int().positive('Choose the vehicle / unit').max(2147483647, 'Choose the vehicle / unit'),
   locationId: optionalId,
   locationText: optionalText(100),
   vehicleStatus: z.enum(VEHICLE_STATUSES, { error: 'Choose the vehicle status' }),
   gpsStatus: z.enum(LINK_STATUSES, { error: 'Choose the GPS status' }),
   dashcamStatus: z.enum(LINK_STATUSES, { error: 'Choose the dashcam status' }),
-  platformId: z.number({ error: 'Choose the platform' }).int().positive('Choose the platform'),
+  platformId: z.number({ error: 'Choose the platform' }).int().positive('Choose the platform').max(2147483647, 'Choose the platform'),
   remarks: optionalText(2000),
   locationDetail: onlyStatic,
 })

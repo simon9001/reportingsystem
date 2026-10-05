@@ -117,7 +117,7 @@ describe('static and mobile weighbridges in the explorer', () => {
     })
     await insertIncident(world, {
       occurredAt: '2026-08-30T10:00:00.000Z', side: 'MOBILE', vehicleUnitId: 'KCB 220T', platformValue: 'MettaX', locationValue: 'Mombasa Road',
-      dashcamStatus: 'UNKNOWN', vehicleStatus: 'OFFLINE',
+      dashcamStatus: 'UNKNOWN', vehicleStatus: 'OFFLINE', remarks: '=HYPERLINK("x")',
     })
   })
 
@@ -160,6 +160,8 @@ describe('static and mobile weighbridges in the explorer', () => {
     ])
     const units = [mob.getRow(2).getCell(6).value, mob.getRow(3).getCell(6).value].sort()
     expect(units).toEqual(['KCB 220T', 'KDG 143S'])
+    const remarks = [mob.getRow(2).getCell(14).value, mob.getRow(3).getCell(14).value].map(String)
+    expect(remarks.some((r) => r.startsWith("'="))).toBe(true)
     const onlyMobile = new ExcelJS.Workbook()
     await onlyMobile.xlsx.load(await (await call(app, 'GET', '/api/incidents/export.xlsx?side=MOBILE', { cookie })).arrayBuffer())
     expect(onlyMobile.getWorksheet('Static weighbridges')).toBeUndefined()

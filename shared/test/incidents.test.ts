@@ -37,6 +37,12 @@ describe('incidentInputSchema', () => {
   it('requires a description of at least 3 characters', () => {
     expect(incidentInputSchema.safeParse({ ...base, description: 'x' }).success).toBe(false)
   })
+
+  it('rejects ids beyond the database integer range', () => {
+    const r = incidentInputSchema.safeParse({ ...base, side: 'MOBILE', locationId: null, locationText: 'Mlolongo', vehicleId: 2147483648 })
+    expect(r.success).toBe(false)
+    if (!r.success) expect(r.error.issues.some((i) => i.path[0] === 'vehicleId')).toBe(true)
+  })
 })
 
 describe('incidentQuerySchema', () => {
