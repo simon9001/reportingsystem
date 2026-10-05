@@ -88,11 +88,15 @@ export async function incidentsByCategory(from: string, to: string, side?: Incid
 export async function incidentHotspots(from: string, to: string, side?: IncidentSide, take = 5): Promise<HotspotDto[]> {
   const where = scope(from, to, side)
   // SQL Server groups text case-insensitively and returns an arbitrary spelling, so typed places are read as-is and merged in buildHotspots.
-  const [rows, typed] = await Promise.all([
+  const [rows, typed, places] = await Promise.all([
     prisma.incident.groupBy({ by: ['side', 'locationId', 'categoryId'], where: { ...where, locationId: { not: null } }, _count: { _all: true } }),
     prisma.incident.findMany({ where: { ...where, locationId: null, locationText: { not: null } }, select: { side: true, locationText: true, categoryId: true }, orderBy: { occurredAt: 'asc' } }),
+    prisma.lookupItem.findMany({ where: { listType: 'LOCATION' }, select: { id: true, value: true } }),
   ])
-  const ids = [...new Set([...rows.flatMap((r) => [r.locationId!, r.categoryId]), ...typed.map((t) => t.categoryId)])]
+  // Typed text spelling a listed place (active or not) merges into that place.
+  const placeIds = new Map(places.map((p) => [p.value.trim().toLowerCase(), p.id]))
+  const typedIds = typed.flatMap((t) => placeIds.get(t.locationText?.trim().toLowerCase() ?? '') ?? [])
+  const ids = [...new Set([...rows.flatMap((r) => [r.locationId!, r.categoryId]), ...typed.map((t) => t.categoryId), ...typedIds])]
   const names = await lookupNames(ids)
   return buildHotspots(
     [
@@ -101,6 +105,7 @@ export async function incidentHotspots(from: string, to: string, side?: Incident
     ],
     names,
     take,
+    placeIds,
   )
 }
 
@@ -117,7 +122,7 @@ export async function incidentDayNight(from: string, to: string, side?: Incident
 
 export async function incidentsByVehicle(from: string, to: string, take = 10): Promise<CountByDto[]> {
   const rows = await prisma.incident.groupBy({
-    by: ['vehicleId'], where: { ...scope(from, to, 'MOBILE'), vehicleId: { not: null } }, _count: { vehicleId: true }, orderBy: { _count: { vehicleId: 'desc' } }, take,
+    by: ['vehicleId'], where: { ...scope(from, to, 'MOBILE'), vehicleId: { not: null } }, _count: { vehicleId: true }, orderBy: [{ _count: { vehicleId: 'desc' } }, { vehicleId: 'asc' }], take,
   })
   const vehicles = await prisma.vehicle.findMany({ where: { id: { in: rows.map((r) => r.vehicleId!) } }, select: { id: true, unitId: true } })
   const names = new Map(vehicles.map((v) => [v.id, v.unitId]))
@@ -131,7 +136,7 @@ export async function incidentMobileHealth(from: string, to: string): Promise<Mo
     prisma.incident.groupBy({ by: ['gpsStatus'], where, _count: { _all: true } }),
     prisma.incident.groupBy({ by: ['dashcamStatus'], where, _count: { _all: true } }),
     prisma.incident.groupBy({ by: ['vehicleStatus'], where, _count: { _all: true } }),
-    prisma.incident.groupBy({ by: ['platformId'], where: { ...where, platformId: { not: null } }, _count: { platformId: true }, orderBy: { _count: { platformId: 'desc' } } }),
+    prisma.incident.groupBy({ by: ['platformId'], where: { ...where, platformId: { not: null } }, _count: { platformId: true }, orderBy: [{ _count: { platformId: 'desc' } }, { platformId: 'asc' }] }),
   ])
   const tally = <T,>(rows: (T & { _count: { _all: number } })[], pick: (r: T) => string | null, value: string) =>
     rows.reduce((n, r) => (pick(r) === value ? n + r._count._all : n), 0)

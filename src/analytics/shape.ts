@@ -74,11 +74,13 @@ export function buildHotspots(
   rows: { side: string; locationId: number | null; locationText: string | null; categoryId: number; count: number }[],
   names: Map<number, string>,
   take: number,
+  placeIds: Map<string, number> = new Map(),
 ): HotspotDto[] {
   const groups = new Map<string, { kind: 'station' | 'place'; location: string; count: number; cats: Map<number, number>; drill: Record<string, string> }>()
   for (const r of rows) {
     let key: string
     let entry: { kind: 'station' | 'place'; location: string; drill: Record<string, string> }
+    let typed = false
     if (r.side === 'STATIC' && r.locationId !== null) {
       key = `station:${r.locationId}`
       entry = { kind: 'station', location: names.get(r.locationId) ?? 'Unknown', drill: { side: 'STATIC', locationId: String(r.locationId) } }
@@ -87,10 +89,21 @@ export function buildHotspots(
       entry = { kind: 'place', location: names.get(r.locationId) ?? 'Unknown', drill: { side: 'MOBILE', locationId: String(r.locationId) } }
     } else if (r.side === 'MOBILE' && r.locationText?.trim()) {
       const text = r.locationText.trim()
-      key = `typed:${text.toLowerCase()}`
-      entry = { kind: 'place', location: text, drill: { side: 'MOBILE', q: text } }
+      const listedId = placeIds.get(text.toLowerCase())
+      if (listedId !== undefined) {
+        typed = true
+        // Typed text that spells a listed place counts toward that place.
+        const listed = names.get(listedId) ?? text
+        key = `place:${listedId}`
+        entry = { kind: 'place', location: listed, drill: { side: 'MOBILE', q: listed } }
+      } else {
+        key = `typed:${text.toLowerCase()}`
+        entry = { kind: 'place', location: text, drill: { side: 'MOBILE', q: text } }
+      }
     } else continue
     const g = groups.get(key) ?? { ...entry, count: 0, cats: new Map<number, number>() }
+    // A listed place that also holds typed rows is drilled by name so the explorer's search finds both kinds.
+    if (typed) g.drill = entry.drill
     g.count += r.count
     g.cats.set(r.categoryId, (g.cats.get(r.categoryId) ?? 0) + r.count)
     groups.set(key, g)

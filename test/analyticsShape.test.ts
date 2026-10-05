@@ -86,4 +86,15 @@ describe('analytics shaping', () => {
       { key: 'place:2', kind: 'place', location: 'Mombasa Road', count: 1, topCategory: 'CCTV', drill: { side: 'MOBILE', locationId: '2' } },
     ])
   })
+
+  it('merges typed text that spells a listed place into that place and drills by name', () => {
+    const names = new Map([[2, 'Mombasa Road'], [10, 'CCTV']])
+    const h = buildHotspots([
+      { side: 'MOBILE', locationId: 2, locationText: null, categoryId: 10, count: 1 },
+      { side: 'MOBILE', locationId: null, locationText: ' mombasa road ', categoryId: 10, count: 2 },
+    ], names, 5, new Map([['mombasa road', 2]]))
+    expect(h).toEqual([
+      { key: 'place:2', kind: 'place', location: 'Mombasa Road', count: 3, topCategory: 'CCTV', drill: { side: 'MOBILE', q: 'Mombasa Road' } },
+    ])
+  })
 })
