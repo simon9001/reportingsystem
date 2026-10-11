@@ -1,4 +1,4 @@
-import type { AuditAction, EscalationResult, IncidentEventKind, IncidentSide, IncidentStatus, LinkStatus, LookupType, Role, Severity, ShiftRole, VehicleStatus } from './constants'
+import type { AuditAction, EmailJobStatus, EmailJobType, EscalationResult, IncidentEventKind, IncidentSide, IncidentStatus, LinkStatus, LookupType, OverallStatus, ReportStatus, ReportTimeliness, Role, Severity, ShiftRole, VehicleStatus } from './constants'
 
 export interface SessionUserDto { id: number; fullName: string; email: string; role: Role; mustChangePassword: boolean }
 export interface UserDto extends SessionUserDto { isActive: boolean; lastLoginAt: string | null; createdAt: string }
@@ -174,3 +174,113 @@ export interface AttentionItemDto {
   status: IncidentStatus
   reasons: string[]
 }
+
+export interface ReportIncidentRowDto {
+  id: number
+  ref: string
+  side: IncidentSide
+  occurredAt: string
+  /** Static: station (· detail). Mobile: unit · place. */
+  place: string
+  category: string
+  severity: Severity
+  status: IncidentStatus
+  escalationResult: EscalationResult
+}
+
+export interface ReportFiguresDto {
+  total: number
+  bySeverity: Record<Severity, number>
+  byStatus: Record<IncidentStatus, number>
+  bySide: Record<IncidentSide, number>
+  byCategory: { label: string; count: number }[]
+  escalation: Record<EscalationResult, number>
+  avgMinutesToResolve: number | null
+  openAtEnd: number
+}
+
+export type ReportCheckCode = 'NOT_ESCALATED' | 'EMPTY_DESCRIPTION' | 'OPEN_WITHOUT_PENDING_ACTIONS' | 'QUIET_WITHOUT_OVERVIEW'
+export interface ReportCheckDto { code: ReportCheckCode; message: string; ref: string | null }
+
+export interface ReportShiftDto {
+  id: number
+  shiftDate: string
+  shiftCode: string
+  shiftName: string
+  startsAt: string
+  endsAt: string
+  supervisor: PersonRef
+  officer: PersonRef
+}
+
+export interface ReportContentDto {
+  shift: ReportShiftDto
+  /** shift end + reportDeadlineMinutes, ISO */
+  deadline: string
+  figures: ReportFiguresDto
+  criticalHigh: ReportIncidentRowDto[]
+  open: ReportIncidentRowDto[]
+  incidents: ReportIncidentRowDto[]
+  checks: ReportCheckDto[]
+}
+
+export interface ReportFieldsDto {
+  overallStatus: OverallStatus | null
+  overview: string | null
+  keyEvents: string | null
+  pendingActions: string | null
+  operationalConcerns: string | null
+  recommendations: string | null
+  confirmReviewed: boolean
+  confirmEscalated: boolean
+  confirmHandedOver: boolean
+  confirmSubmitted: boolean
+}
+
+export interface ShiftReportDto {
+  id: number
+  shiftId: number
+  status: ReportStatus
+  fields: ReportFieldsDto
+  content: ReportContentDto
+  submittedBy: PersonRef | null
+  submittedAt: string | null
+  timeliness: ReportTimeliness | null
+  lateMinutes: number | null
+  /** DRAFT and past the deadline */
+  overdue: boolean
+  updatedAt: string
+  canEdit: boolean
+  canSubmit: boolean
+}
+
+export interface ReportListItemDto {
+  id: number
+  shiftId: number
+  shiftDate: string
+  shiftCode: string
+  shiftName: string
+  supervisor: PersonRef
+  status: ReportStatus
+  overallStatus: OverallStatus | null
+  submittedAt: string | null
+  timeliness: ReportTimeliness | null
+  lateMinutes: number | null
+  overdue: boolean
+  deadline: string
+}
+
+export interface EmailJobDto {
+  id: number
+  type: EmailJobType
+  to: string
+  status: EmailJobStatus
+  attempts: number
+  lastError: string | null
+  reportId: number | null
+  createdAt: string
+  nextAttemptAt: string
+  sentAt: string | null
+}
+
+export interface EmailStatusDto { configured: boolean; host: string | null; from: string | null }

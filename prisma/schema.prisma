@@ -28,6 +28,7 @@ model User {
   incidentsUpdated    Incident[]           @relation("IncidentUpdatedBy")
   attachmentsUploaded IncidentAttachment[] @relation("AttachmentUploadedBy")
   incidentEvents      IncidentEvent[]      @relation("IncidentEventUser")
+  reportsSubmitted    ShiftReport[]        @relation("ReportSubmittedBy")
 }
 
 /// id is the SHA-256 hex of the cookie token; the raw token is never stored.
@@ -115,6 +116,7 @@ model Shift {
   supervisor        User            @relation("ShiftSupervisor", fields: [supervisorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   officer           User            @relation("ShiftOfficer", fields: [officerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   incidents         Incident[]
+  report            ShiftReport?
 
   @@unique([shiftDate, shiftDefinitionId])
   @@index([startsAt, endsAt])
@@ -229,4 +231,54 @@ model IncidentSequence {
   lastNumber Int
 
   @@id([prefix, year])
+}
+
+model ShiftReport {
+  id                  Int        @id @default(autoincrement())
+  shiftId             Int        @unique
+  status              String     @default("DRAFT") @db.NVarChar(20)
+  overallStatus       String?    @db.NVarChar(20)
+  overview            String?    @db.NVarChar(4000)
+  keyEvents           String?    @db.NVarChar(4000)
+  pendingActions      String?    @db.NVarChar(4000)
+  operationalConcerns String?    @db.NVarChar(4000)
+  recommendations     String?    @db.NVarChar(4000)
+  confirmReviewed     Boolean    @default(false)
+  confirmEscalated    Boolean    @default(false)
+  confirmHandedOver   Boolean    @default(false)
+  confirmSubmitted    Boolean    @default(false)
+  submittedById       Int?
+  submittedAt         DateTime?
+  timeliness          String?    @db.NVarChar(10)
+  lateMinutes         Int?
+  snapshotJson        String?    @db.NVarChar(Max)
+  pdfStoredName       String?    @db.NVarChar(200)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  shift               Shift      @relation(fields: [shiftId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  submittedBy         User?      @relation("ReportSubmittedBy", fields: [submittedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  emailJobs           EmailJob[]
+
+  @@index([status])
+}
+
+/// One row per recipient; doubles as the email log. dedupeKey is required (SQL Server unique allows one NULL): random UUID unless a job must be queued once.
+model EmailJob {
+  id            Int          @id @default(autoincrement())
+  type          String       @db.NVarChar(40)
+  reportId      Int?
+  shiftId       Int?
+  to            String       @db.NVarChar(320)
+  status        String       @default("PENDING") @db.NVarChar(30)
+  attempts      Int          @default(0)
+  nextAttemptAt DateTime     @default(now())
+  lockedAt      DateTime?
+  lastError     String?      @db.NVarChar(1000)
+  sentAt        DateTime?
+  dedupeKey     String       @unique @db.NVarChar(200)
+  createdById   Int?
+  createdAt     DateTime     @default(now())
+  report        ShiftReport? @relation(fields: [reportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([status, nextAttemptAt])
 }

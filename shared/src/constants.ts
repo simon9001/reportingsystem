@@ -54,7 +54,7 @@ export const ESCALATION_RESULT_LABELS: Record<EscalationResult, string> = {
 export const INCIDENT_EVENT_KINDS = ['CREATED', 'UPDATED', 'STATUS_CHANGED', 'ESCALATED', 'RESOLVED', 'ATTACHMENT_ADDED', 'ATTACHMENT_REMOVED'] as const
 export type IncidentEventKind = (typeof INCIDENT_EVENT_KINDS)[number]
 
-export const LIVE_TOPICS = ['incidents', 'roster', 'users', 'config', 'audit', 'shift'] as const
+export const LIVE_TOPICS = ['incidents', 'roster', 'users', 'config', 'audit', 'shift', 'reports'] as const
 export type LiveTopic = (typeof LIVE_TOPICS)[number]
 
 export const ATTACHMENT_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const
@@ -74,3 +74,49 @@ export const VEHICLE_STATUS_LABELS: Record<VehicleStatus, string> = { MOVING: 'M
 export const LINK_STATUSES = ['ONLINE', 'OFFLINE', 'UNKNOWN'] as const
 export type LinkStatus = (typeof LINK_STATUSES)[number]
 export const LINK_STATUS_LABELS: Record<LinkStatus, string> = { ONLINE: 'Online', OFFLINE: 'Offline', UNKNOWN: 'Unknown' }
+
+export const OVERALL_STATUSES = ['NORMAL', 'MINOR_ISSUES', 'MAJOR_ISSUES'] as const
+export type OverallStatus = (typeof OVERALL_STATUSES)[number]
+export const OVERALL_STATUS_LABELS: Record<OverallStatus, string> = { NORMAL: 'Normal', MINOR_ISSUES: 'Minor issues', MAJOR_ISSUES: 'Major issues' }
+
+export const REPORT_STATUSES = ['DRAFT', 'SUBMITTED'] as const
+export type ReportStatus = (typeof REPORT_STATUSES)[number]
+export const REPORT_TIMELINESS = ['ON_TIME', 'LATE'] as const
+export type ReportTimeliness = (typeof REPORT_TIMELINESS)[number]
+
+export const REPORT_TEXT_MAX = 4000
+export const REPORT_TEXT_FIELDS = ['overview', 'keyEvents', 'pendingActions', 'operationalConcerns', 'recommendations'] as const
+export type ReportTextField = (typeof REPORT_TEXT_FIELDS)[number]
+export const REPORT_TEXT_LABELS: Record<ReportTextField, string> = {
+  overview: 'Shift overview',
+  keyEvents: 'Key events',
+  pendingActions: 'Pending actions for next shift',
+  operationalConcerns: 'Operational concerns',
+  recommendations: 'Recommendations',
+}
+export const REPORT_CONFIRMATIONS = [
+  { key: 'confirmReviewed', label: 'All incidents for this shift have been reviewed and are complete' },
+  { key: 'confirmEscalated', label: 'All critical and high incidents were escalated' },
+  { key: 'confirmHandedOver', label: 'Outstanding items have been handed over to the next shift' },
+  { key: 'confirmSubmitted', label: 'This report is submitted to management' },
+] as const
+export type ReportConfirmation = (typeof REPORT_CONFIRMATIONS)[number]['key']
+
+export const EMAIL_JOB_TYPES = ['REPORT_SUBMITTED', 'REPORT_OVERDUE_DD', 'REPORT_OVERDUE_SUPERVISOR', 'TEST'] as const
+export type EmailJobType = (typeof EMAIL_JOB_TYPES)[number]
+export const EMAIL_JOB_TYPE_LABELS: Record<EmailJobType, string> = {
+  REPORT_SUBMITTED: 'Report submitted',
+  REPORT_OVERDUE_DD: 'Report overdue (Deputy Director)',
+  REPORT_OVERDUE_SUPERVISOR: 'Report overdue (supervisor reminder)',
+  TEST: 'Test email',
+}
+export const EMAIL_JOB_STATUSES = ['PENDING', 'SENDING', 'SENT', 'FAILED', 'SKIPPED_NO_SMTP', 'SKIPPED_NO_RECIPIENT'] as const
+export type EmailJobStatus = (typeof EMAIL_JOB_STATUSES)[number]
+export const EMAIL_JOB_STATUS_LABELS: Record<EmailJobStatus, string> = {
+  PENDING: 'Waiting',
+  SENDING: 'Sending',
+  SENT: 'Sent',
+  FAILED: 'Failed',
+  SKIPPED_NO_SMTP: 'Skipped — SMTP not configured',
+  SKIPPED_NO_RECIPIENT: 'Skipped — no recipient',
+}
