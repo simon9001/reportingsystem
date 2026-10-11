@@ -19,6 +19,20 @@ services:
         value: "10000"
       - key: SR_UPLOAD_DIR
         value: /var/data/uploads
+      - key: SR_REPORT_DIR
+        value: /var/data/reports
+      - key: SR_SMTP_HOST # e.g. smtp.office365.com; leave empty to log emails as skipped
+        sync: false
+      - key: SR_SMTP_PORT
+        value: "587"
+      - key: SR_SMTP_SECURE # false for 587 (STARTTLS), true for 465
+        value: "false"
+      - key: SR_SMTP_USER
+        sync: false
+      - key: SR_SMTP_PASSWORD # secret; app password for Gmail
+        sync: false
+      - key: SR_SMTP_FROM # e.g. "KeNHA Control Room <controlroom@kenha.co.ke>"
+        sync: false
       - key: SR_APP_TIMEZONE
         value: Africa/Nairobi
       - key: SR_COOKIE_SECURE
