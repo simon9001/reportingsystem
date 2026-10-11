@@ -74,6 +74,8 @@ export async function insertIncident(
     minutesToResolve?: number | null
     escalationResult?: string
     escalationMinutes?: number | null
+    /** Defaults to the current shift. */
+    shiftId?: number
   },
 ) {
   seq += 1
@@ -90,7 +92,7 @@ export async function insertIncident(
     data: {
       ref: `${mobile ? 'MWB' : 'INC'}-2026-${String(seq).padStart(4, '0')}`,
       side,
-      shiftId: world.current.id,
+      shiftId: o.shiftId ?? world.current.id,
       shiftCode: o.shiftCode ?? 'DAY',
       occurredAt,
       occurredLocalDate: new Date(`${localDateString(occurredAt, env.SR_APP_TIMEZONE)}T00:00:00Z`),

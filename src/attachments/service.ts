@@ -4,7 +4,7 @@ import { publish } from '../events/bus'
 import { AppError } from '../lib/errors'
 import { prisma } from '../lib/prisma'
 import { canEditIncident } from '../incidents/rules'
-import { editableShiftIds, getIncident } from '../incidents/service'
+import { editableShiftIds, editRefused, getIncident } from '../incidents/service'
 import type { SessionUser } from '../types'
 import { detectAllowedType, readStoredFile, removeStoredFile, saveFile } from './storage'
 
@@ -12,13 +12,13 @@ import { detectAllowedType, readStoredFile, removeStoredFile, saveFile } from '.
 export async function assertCanUpload(actor: SessionUser, incidentId: number): Promise<void> {
   const incident = await prisma.incident.findUnique({ where: { id: incidentId }, include: { shift: true } })
   if (!incident) throw new AppError('NOT_FOUND', 'Incident not found')
-  if (!canEditIncident(actor, incident.shift, await editableShiftIds())) throw new AppError('FORBIDDEN', 'You cannot add snapshots to this incident')
+  if (!canEditIncident(actor, incident.shift, await editableShiftIds())) throw await editRefused(incident.shiftId, 'You cannot add snapshots to this incident')
 }
 
 export async function uploadAttachments(actor: SessionUser, incidentId: number, files: File[], ip: string | null): Promise<UploadResultDto> {
   const incident = await prisma.incident.findUnique({ where: { id: incidentId }, include: { shift: true, _count: { select: { attachments: true } } } })
   if (!incident) throw new AppError('NOT_FOUND', 'Incident not found')
-  if (!canEditIncident(actor, incident.shift, await editableShiftIds())) throw new AppError('FORBIDDEN', 'You cannot add snapshots to this incident')
+  if (!canEditIncident(actor, incident.shift, await editableShiftIds())) throw await editRefused(incident.shiftId, 'You cannot add snapshots to this incident')
   if (files.length === 0) throw new AppError('VALIDATION_ERROR', 'Choose at least one file', { files: 'Choose at least one file' })
   if (incident._count.attachments + files.length > MAX_ATTACHMENTS_PER_INCIDENT) {
     const message = `An incident can have at most ${MAX_ATTACHMENTS_PER_INCIDENT} snapshots (it has ${incident._count.attachments})`
@@ -71,7 +71,7 @@ export async function deleteAttachment(actor: SessionUser, id: number, ip: strin
   if (!att) throw new AppError('NOT_FOUND', 'Snapshot not found')
   const canEdit = canEditIncident(actor, att.incident.shift, await editableShiftIds())
   const allowed = actor.role === 'ADMIN' || (att.uploadedById === actor.id && canEdit)
-  if (!allowed) throw new AppError('FORBIDDEN', 'You cannot remove this snapshot')
+  if (!allowed) throw att.uploadedById === actor.id ? await editRefused(att.incident.shiftId, 'You cannot remove this snapshot') : new AppError('FORBIDDEN', 'You cannot remove this snapshot')
   await prisma.$transaction(async (tx) => {
     await tx.incidentAttachment.delete({ where: { id } })
     await tx.incidentEvent.create({ data: { incidentId: att.incidentId, userId: actor.id, kind: 'ATTACHMENT_REMOVED', summary: `Removed snapshot ${att.originalName}`.slice(0, 300) } })

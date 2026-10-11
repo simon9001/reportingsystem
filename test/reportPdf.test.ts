@@ -11,7 +11,7 @@ const row = (i: number): ReportIncidentRowDto => ({
 function report(incidents: number, status: 'DRAFT' | 'SUBMITTED' = 'SUBMITTED'): ShiftReportDto {
   const rows = Array.from({ length: incidents }, (_, i) => row(i + 1))
   return {
-    id: 42, shiftId: 7, status, overdue: false, updatedAt: '2026-10-11T14:10:00.000Z', canEdit: false, canSubmit: false,
+    id: 42, shiftId: 7, status, overdue: false, updatedAt: '2026-10-11T14:10:00.000Z', submitOpensAt: '2026-10-11T13:30:00.000Z', canEdit: false, canSubmit: false,
     submittedBy: { id: 1, fullName: 'Brian Otieno' }, submittedAt: '2026-10-11T14:08:00.000Z', timeliness: 'ON_TIME', lateMinutes: null,
     fields: {
       overallStatus: 'MINOR_ISSUES', overview: 'A long overview. '.repeat(80), keyEvents: 'WB04 camera restarted', pendingActions: null,

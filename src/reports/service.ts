@@ -9,7 +9,8 @@ import { queueEmail } from '../email/queue'
 import { publish } from '../events/bus'
 import type { Prisma } from '../generated/prisma/client'
 import { listInclude, type IncidentListRow } from '../incidents/mappers'
-import { AppError } from '../lib/errors'
+import { env } from '../lib/env'
+import { AppError, isUniqueViolation } from '../lib/errors'
 import { prisma, type Db } from '../lib/prisma'
 import type { SessionUser } from '../types'
 import { buildReportContent, computeTimeliness, reportDeadline, type ReportIncidentInput } from './build'
@@ -19,6 +20,11 @@ type ShiftRow = Prisma.ShiftGetPayload<{ include: typeof shiftInclude }>
 const reportInclude = { shift: { include: shiftInclude }, submittedBy: true } as const
 type ReportRow = Prisma.ShiftReportGetPayload<{ include: typeof reportInclude }>
 interface Snapshot { content: ReportContentDto; fields: ReportFieldsDto }
+
+/** The supervisor may submit from this many minutes before the shift ends. */
+export const SUBMIT_OPENS_MINUTES_BEFORE_END = 30
+const submitOpensAt = (endsAt: Date) => new Date(endsAt.getTime() - SUBMIT_OPENS_MINUTES_BEFORE_END * 60_000)
+const fmtTime = (d: Date) => new Intl.DateTimeFormat('en-GB', { timeZone: env.SR_APP_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false }).format(d)
 
 let afterSubmit: (reportId: number) => Promise<void> = async () => {}
 /** Task 4 plugs PDF storage in here; failures are logged and never undo a submit. */
@@ -72,6 +78,7 @@ async function toDto(r: ReportRow, actor: SessionUser | null, now: Date): Promis
   const fields = snap?.fields ?? fieldsOf(r)
   const content = snap?.content ?? (await liveContent(r.shift, fields, reportDeadlineMinutes))
   const isSupervisor = !!actor && actor.id === r.shift.supervisorId
+  const opensAt = submitOpensAt(r.shift.endsAt)
   return {
     id: r.id, shiftId: r.shiftId, status: r.status as ReportStatus, fields, content,
     submittedBy: r.submittedBy ? person(r.submittedBy) : null,
@@ -80,8 +87,9 @@ async function toDto(r: ReportRow, actor: SessionUser | null, now: Date): Promis
     lateMinutes: r.lateMinutes,
     overdue: !submitted && now > reportDeadline(r.shift.endsAt, reportDeadlineMinutes),
     updatedAt: r.updatedAt.toISOString(),
+    submitOpensAt: opensAt.toISOString(),
     canEdit: isSupervisor && !submitted,
-    canSubmit: isSupervisor && !submitted,
+    canSubmit: isSupervisor && !submitted && now >= opensAt,
   }
 }
 
@@ -91,14 +99,17 @@ export async function ensureDraft(db: Db, shiftId: number): Promise<{ id: number
   if (existing) return existing
   try {
     return await db.shiftReport.create({ data: { shiftId }, select: { id: true } })
-  } catch {
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err
     return db.shiftReport.findUniqueOrThrow({ where: { shiftId }, select: { id: true } }) // created concurrently
   }
 }
 
-async function loadShift(shiftId: number): Promise<ShiftRow> {
+/** A rostered shift that has started; reports of later shifts do not exist yet. */
+async function loadShift(shiftId: number, now: Date): Promise<ShiftRow> {
   const shift = await prisma.shift.findUnique({ where: { id: shiftId }, include: shiftInclude })
   if (!shift) throw new AppError('NOT_FOUND', 'No one is rostered for this shift')
+  if (now < shift.startsAt) throw new AppError('NOT_FOUND', 'This shift has not started yet')
   return shift
 }
 
@@ -110,7 +121,7 @@ export async function loadReportDto(reportId: number, now = new Date(), actor: S
 }
 
 export async function getShiftReport(actor: SessionUser, shiftId: number, now = new Date()): Promise<ShiftReportDto> {
-  const shift = await loadShift(shiftId)
+  const shift = await loadShift(shiftId, now)
   assertCanReadShiftReport(actor, shift)
   const { id } = await ensureDraft(prisma, shiftId)
   return toDto(await loadRow(id), actor, now)
@@ -123,8 +134,8 @@ export async function getReportById(actor: SessionUser, id: number, now = new Da
   return toDto(row, actor, now)
 }
 
-async function editableRow(actor: SessionUser, shiftId: number) {
-  const shift = await loadShift(shiftId)
+async function editableRow(actor: SessionUser, shiftId: number, now: Date) {
+  const shift = await loadShift(shiftId, now)
   if (accessFor(actor, shift) !== 'supervisor') throw new AppError('FORBIDDEN', 'Only the Shift Supervisor can edit and submit this report')
   const { id } = await ensureDraft(prisma, shiftId)
   const row = await loadRow(id)
@@ -132,19 +143,33 @@ async function editableRow(actor: SessionUser, shiftId: number) {
   return row
 }
 
-export async function updateShiftReport(actor: SessionUser, shiftId: number, input: ReportUpdateParsed, _ip: string | null): Promise<ShiftReportDto> {
-  const row = await editableRow(actor, shiftId)
+export async function updateShiftReport(actor: SessionUser, shiftId: number, input: ReportUpdateParsed, _ip: string | null, now = new Date()): Promise<ShiftReportDto> {
+  const row = await editableRow(actor, shiftId, now)
   if (row.updatedAt.getTime() !== new Date(input.updatedAt).getTime()) {
     throw new AppError('CONFLICT', 'This report was updated elsewhere. Reload the draft.')
   }
   const { updatedAt: _u, ...fields } = input
   const res = await prisma.shiftReport.updateMany({ where: { id: row.id, updatedAt: row.updatedAt, status: 'DRAFT' }, data: fields })
   if (res.count === 0) throw new AppError('CONFLICT', 'This report was updated elsewhere. Reload the draft.')
-  return toDto(await loadRow(row.id), actor, new Date())
+  return toDto(await loadRow(row.id), actor, now)
+}
+
+/** Moves the draft to SUBMITTED only if nobody saved it since `row` was read; otherwise a 409 that says why. */
+export async function markSubmitted(db: Db, row: { id: number; updatedAt: Date }, data: Prisma.ShiftReportUncheckedUpdateManyInput): Promise<void> {
+  const res = await db.shiftReport.updateMany({ where: { id: row.id, status: 'DRAFT', updatedAt: row.updatedAt }, data })
+  if (res.count > 0) return
+  const latest = await db.shiftReport.findUnique({ where: { id: row.id }, select: { status: true } })
+  if (latest?.status === 'SUBMITTED') throw new AppError('CONFLICT', 'This report has already been submitted')
+  throw new AppError('CONFLICT', 'This report was updated elsewhere. Reload the draft and submit again.')
 }
 
 export async function submitShiftReport(actor: SessionUser, shiftId: number, ip: string | null, now = new Date()): Promise<ShiftReportDto> {
-  const row = await editableRow(actor, shiftId)
+  const row = await editableRow(actor, shiftId, now)
+  const opensAt = submitOpensAt(row.shift.endsAt)
+  if (now < opensAt) {
+    const message = `You can submit from ${fmtTime(opensAt)}, ${SUBMIT_OPENS_MINUTES_BEFORE_END} minutes before the shift ends`
+    throw new AppError('VALIDATION_ERROR', message, { _: message })
+  }
   const fields = fieldsOf(row)
   const problems = reportSubmitProblems(fields)
   if (Object.keys(problems).length > 0) throw new AppError('VALIDATION_ERROR', 'Complete the report before submitting', problems)
@@ -153,11 +178,7 @@ export async function submitShiftReport(actor: SessionUser, shiftId: number, ip:
   await prisma.$transaction(async (tx) => {
     const content = await liveContent(row.shift, fields, settings.reportDeadlineMinutes, tx)
     const snapshot: Snapshot = { content, fields }
-    const res = await tx.shiftReport.updateMany({
-      where: { id: row.id, status: 'DRAFT' },
-      data: { status: 'SUBMITTED', submittedAt: now, submittedById: actor.id, timeliness, lateMinutes, snapshotJson: JSON.stringify(snapshot) },
-    })
-    if (res.count === 0) throw new AppError('CONFLICT', 'This report has already been submitted')
+    await markSubmitted(tx, row, { status: 'SUBMITTED', submittedAt: now, submittedById: actor.id, timeliness, lateMinutes, snapshotJson: JSON.stringify(snapshot) })
     await writeAudit(tx, { userId: actor.id, entity: 'ShiftReport', entityId: row.id, action: 'SUBMIT', after: { shiftId, timeliness, lateMinutes }, ip })
     const recipients = settings.ddEmails.length > 0 ? settings.ddEmails : ['']
     for (const to of recipients) await queueEmail(tx, { type: 'REPORT_SUBMITTED', to, reportId: row.id, shiftId, createdById: actor.id })

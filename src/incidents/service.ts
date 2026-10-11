@@ -37,6 +37,17 @@ export async function editableShiftIds(now = new Date()): Promise<number[]> {
   return (await editableWindow(now)).ids
 }
 
+export const REPORT_SUBMITTED_LOCK_MESSAGE = "This shift's report has been submitted; incidents can no longer be changed."
+
+export async function isShiftReportSubmitted(shiftId: number): Promise<boolean> {
+  return (await prisma.shiftReport.count({ where: { shiftId, status: 'SUBMITTED' } })) > 0
+}
+
+/** A 403 that says the shift is locked by its submitted report when that is the reason, otherwise `fallback`. */
+export async function editRefused(shiftId: number, fallback: string): Promise<AppError> {
+  return new AppError('FORBIDDEN', (await isShiftReportSubmitted(shiftId)) ? REPORT_SUBMITTED_LOCK_MESSAGE : fallback)
+}
+
 /** The previous shift when the user is rostered on it and the late-entry rules still let them log incidents there. */
 export async function getPreviousEditableShift(actor: SessionUser, now = new Date()): Promise<PreviousShiftDto | null> {
   const { previous, ids } = await editableWindow(now)
@@ -192,7 +203,7 @@ export async function createIncident(actor: SessionUser, input: IncidentInputPar
   assertNotFuture(occurredAt, now)
   const shift = await resolveShiftFor(occurredAt)
   if (!canEditIncident(actor, shift, await editableShiftIds(now))) {
-    throw new AppError('FORBIDDEN', 'You can only log incidents for your current or previous shift')
+    throw await editRefused(shift.id, 'You can only log incidents for your current or previous shift')
   }
   await assertReferences(input)
   const data = await buildData(input, shift, occurredAt)
@@ -216,7 +227,7 @@ export async function updateIncident(actor: SessionUser, id: number, input: Inci
   const existing = await loadDetail({ id })
   if (!existing) throw new AppError('NOT_FOUND', 'Incident not found')
   const editable = await editableShiftIds(now)
-  if (!canEditIncident(actor, existing.shift, editable)) throw new AppError('FORBIDDEN', 'You can no longer edit this incident')
+  if (!canEditIncident(actor, existing.shift, editable)) throw await editRefused(existing.shift.id, 'You can no longer edit this incident')
   if (input.side !== existing.side) {
     throw new AppError('VALIDATION_ERROR', 'The side cannot be changed', { side: 'The side cannot be changed' })
   }
@@ -226,7 +237,7 @@ export async function updateIncident(actor: SessionUser, id: number, input: Inci
   let shift: ShiftWithPeople = existing.shift
   if (occurredAt.getTime() !== existing.occurredAt.getTime()) {
     shift = await resolveShiftFor(occurredAt)
-    if (!canEditIncident(actor, shift, editable)) throw new AppError('FORBIDDEN', 'You can only move an incident to your current or previous shift')
+    if (!canEditIncident(actor, shift, editable)) throw await editRefused(shift.id, 'You can only move an incident to your current or previous shift')
   }
   await assertReferences(input, existing)
   const data = await buildData(input, shift, occurredAt)

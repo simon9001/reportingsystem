@@ -250,6 +250,8 @@ export interface ShiftReportDto {
   /** DRAFT and past the deadline */
   overdue: boolean
   updatedAt: string
+  /** The supervisor can submit from this time (30 minutes before the shift ends). */
+  submitOpensAt: string
   canEdit: boolean
   canSubmit: boolean
 }

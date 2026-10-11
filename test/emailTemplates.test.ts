@@ -4,7 +4,7 @@ import { escapeHtml, reportOverdueDdEmail, reportOverdueSupervisorEmail, reportS
 
 const ctx = { appBaseUrl: 'https://cr.kenha.test', timeZone: 'Africa/Nairobi' }
 const base: ShiftReportDto = {
-  id: 9, shiftId: 3, status: 'SUBMITTED', overdue: false, updatedAt: '2026-10-11T14:10:00.000Z', canEdit: false, canSubmit: false,
+  id: 9, shiftId: 3, status: 'SUBMITTED', overdue: false, updatedAt: '2026-10-11T14:10:00.000Z', submitOpensAt: '2026-10-11T13:30:00.000Z', canEdit: false, canSubmit: false,
   submittedBy: { id: 1, fullName: 'Brian Otieno' }, submittedAt: '2026-10-11T14:08:00.000Z', timeliness: 'ON_TIME', lateMinutes: null,
   fields: {
     overallStatus: 'MINOR_ISSUES', overview: 'Camera <script>alert(1)</script> & power dips', keyEvents: null, pendingActions: null,
