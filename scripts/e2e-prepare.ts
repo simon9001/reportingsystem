@@ -26,5 +26,11 @@ const w = shiftWindow(now.shiftDate, now.definition, env.SR_APP_TIMEZONE)
 await prisma.shift.create({
   data: { shiftDate: fromDateString(now.shiftDate), shiftDefinitionId: now.definition.id, startsAt: w.startsAt, endsAt: w.endsAt, supervisorId: sup.id, officerId: off.id },
 })
+// The previous shift (already ended) is the one covering the moment just before the current one started; its report can be submitted.
+const prev = resolveShift(new Date(w.startsAt.getTime() - 1), defs, env.SR_APP_TIMEZONE)
+if (!prev) throw new Error('E2E prepare: no active shift definition covers the time before the current shift; cannot roster the previous shift.')
+await prisma.shift.create({
+  data: { shiftDate: fromDateString(prev.shiftDate), shiftDefinitionId: prev.definition.id, startsAt: prev.startsAt, endsAt: prev.endsAt, supervisorId: sup.id, officerId: off.id },
+})
 console.log('E2E database ready.')
 await prisma.$disconnect()
