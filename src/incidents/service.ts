@@ -22,13 +22,15 @@ function assertEditorRole(actor: SessionUser) {
 const timeFmt = () => new Intl.DateTimeFormat('en-GB', { timeZone: env.SR_APP_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false })
 const fmtTime = (isoValue: string) => timeFmt().format(new Date(isoValue))
 
-/** The current shift and the one immediately before it. */
+/** The current shift and the one immediately before it, minus any shift whose report is already submitted. */
 async function editableWindow(now: Date) {
   const current = await findShiftAt(now)
   const anchor = current?.startsAt ?? now
   const previous = await prisma.shift.findFirst({ where: { endsAt: { lte: anchor } }, orderBy: { endsAt: 'desc' }, include: { definition: true } })
-  const ids = [current?.id, previous?.id].filter((id): id is number => id !== undefined)
-  return { previous, ids }
+  const candidates = [current?.id, previous?.id].filter((id): id is number => id !== undefined)
+  const submitted = await prisma.shiftReport.findMany({ where: { shiftId: { in: candidates }, status: 'SUBMITTED' }, select: { shiftId: true } })
+  const locked = new Set(submitted.map((s) => s.shiftId))
+  return { previous, ids: candidates.filter((id) => !locked.has(id)) }
 }
 
 export async function editableShiftIds(now = new Date()): Promise<number[]> {

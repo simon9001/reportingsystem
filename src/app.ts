@@ -11,6 +11,7 @@ import { eventsRoutes } from './events/routes'
 import { incidentsRoutes } from './incidents/routes'
 import { errorHandler } from './lib/errors'
 import { originCheck } from './lib/http'
+import { reportsRoutes, shiftReportRoutes } from './reports/routes'
 import { rosterRoutes } from './roster/routes'
 import type { AppEnv } from './types'
 import { usersRoutes } from './users/routes'
@@ -44,6 +45,8 @@ export function createApp() {
   api.route('/events', eventsRoutes)
   api.route('/attachments', attachmentsRoutes)
   api.route('/analytics', analyticsRoutes)
+  api.route('/shifts', shiftReportRoutes)
+  api.route('/reports', reportsRoutes)
 
   app.route('/api', api)
   return app

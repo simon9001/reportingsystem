@@ -34,5 +34,6 @@ lerna-debug.log*
 src/generated/
 uploads/
 uploads-test/
-reports/
+/reports/
+/reports-test/
 coverage/
