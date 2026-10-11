@@ -10,6 +10,7 @@ import { parseId, parseQuery } from '../lib/validate'
 import type { AppEnv } from '../types'
 import { queueEmail } from './queue'
 import { smtpStatus } from './transport'
+import { isReminderForSubmittedReport } from './worker'
 
 export const adminEmailRoutes = new Hono<AppEnv>()
 adminEmailRoutes.use('*', requireRole('ADMIN'))
@@ -35,6 +36,7 @@ adminEmailRoutes.post('/email-jobs/:id/retry', async (c) => {
   const id = parseId(c)
   const job = await prisma.emailJob.findUnique({ where: { id } })
   if (!job) throw new AppError('NOT_FOUND', 'Email not found')
+  if (await isReminderForSubmittedReport(job)) throw new AppError('CONFLICT', 'The report has been submitted; this reminder is no longer needed')
   if (!['FAILED', 'SKIPPED_NO_SMTP'].includes(job.status)) throw new AppError('CONFLICT', 'Only failed or skipped emails can be retried')
   await prisma.$transaction(async (tx) => {
     await tx.emailJob.update({ where: { id }, data: { status: 'PENDING', attempts: 0, nextAttemptAt: new Date(), lastError: null, lockedAt: null } })

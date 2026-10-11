@@ -28,6 +28,9 @@ export function getMailer(): Mailer | null {
     port: env.SR_SMTP_PORT,
     secure: env.SR_SMTP_SECURE,
     auth: env.SR_SMTP_USER ? { user: env.SR_SMTP_USER, pass: env.SR_SMTP_PASSWORD ?? '' } : undefined,
+    connectionTimeout: 30_000,
+    greetingTimeout: 30_000,
+    socketTimeout: 60_000,
   })
   const t = transporter
   return { send: async (m) => { await t.sendMail({ from: fromAddress() ?? undefined, ...m }) } }

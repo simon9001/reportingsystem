@@ -15,6 +15,14 @@ export const BACKOFF_MINUTES = [1, 5, 15, 60]
 export const MAX_ATTEMPTS = 5
 const STALE_LOCK_MS = 10 * 60_000
 const BATCH = 5
+const OVERDUE_TYPES: readonly string[] = ['REPORT_OVERDUE_DD', 'REPORT_OVERDUE_SUPERVISOR']
+
+/** An overdue reminder is no longer needed once its report has been submitted. */
+export async function isReminderForSubmittedReport(job: Pick<EmailJob, 'type' | 'reportId'>): Promise<boolean> {
+  if (!OVERDUE_TYPES.includes(job.type) || job.reportId === null) return false
+  const report = await prisma.shiftReport.findUnique({ where: { id: job.reportId }, select: { status: true } })
+  return report?.status === 'SUBMITTED'
+}
 
 /** Minutes to wait after the Nth failed attempt; null once attempts are exhausted. */
 export function nextAttemptDelayMinutes(attemptsAfterFailure: number): number | null {
@@ -60,6 +68,11 @@ export async function runEmailJobs(now = new Date(), mailer: Mailer | null = get
   const ids = await claimJobs(now)
   for (const id of ids) {
     const job = await prisma.emailJob.findUniqueOrThrow({ where: { id } })
+    if (await isReminderForSubmittedReport(job)) {
+      await prisma.emailJob.update({ where: { id }, data: { status: 'SKIPPED_SUBMITTED', lockedAt: null } })
+      result.skipped += 1
+      continue
+    }
     if (!mailer) {
       await prisma.emailJob.update({ where: { id }, data: { status: 'SKIPPED_NO_SMTP', lockedAt: null } })
       result.skipped += 1
@@ -98,11 +111,15 @@ export async function queueOverdueReports(now = new Date()): Promise<number> {
   })
   let queued = 0
   for (const s of shifts) {
-    const { id: reportId } = await ensureDraft(prisma, s.id)
-    for (const to of ddEmails) {
-      if (await queueEmailOnce(prisma, { type: 'REPORT_OVERDUE_DD', to, reportId, shiftId: s.id, dedupeKey: `OVERDUE_DD:${s.id}:${to.toLowerCase()}` })) queued += 1
+    try {
+      const { id: reportId } = await ensureDraft(prisma, s.id)
+      for (const to of ddEmails) {
+        if (await queueEmailOnce(prisma, { type: 'REPORT_OVERDUE_DD', to, reportId, shiftId: s.id, dedupeKey: `OVERDUE_DD:${s.id}:${to.toLowerCase()}` })) queued += 1
+      }
+      if (await queueEmailOnce(prisma, { type: 'REPORT_OVERDUE_SUPERVISOR', to: s.supervisor.email, reportId, shiftId: s.id, dedupeKey: `OVERDUE_SUP:${s.id}` })) queued += 1
+    } catch (err) {
+      console.error('[overdue check] shift', s.id, err) // one bad shift must not stop the others
     }
-    if (await queueEmailOnce(prisma, { type: 'REPORT_OVERDUE_SUPERVISOR', to: s.supervisor.email, reportId, shiftId: s.id, dedupeKey: `OVERDUE_SUP:${s.id}` })) queued += 1
   }
   if (queued > 0) publish('reports')
   return queued

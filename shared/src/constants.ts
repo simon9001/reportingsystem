@@ -110,7 +110,7 @@ export const EMAIL_JOB_TYPE_LABELS: Record<EmailJobType, string> = {
   REPORT_OVERDUE_SUPERVISOR: 'Report overdue (supervisor reminder)',
   TEST: 'Test email',
 }
-export const EMAIL_JOB_STATUSES = ['PENDING', 'SENDING', 'SENT', 'FAILED', 'SKIPPED_NO_SMTP', 'SKIPPED_NO_RECIPIENT'] as const
+export const EMAIL_JOB_STATUSES = ['PENDING', 'SENDING', 'SENT', 'FAILED', 'SKIPPED_NO_SMTP', 'SKIPPED_NO_RECIPIENT', 'SKIPPED_SUBMITTED'] as const
 export type EmailJobStatus = (typeof EMAIL_JOB_STATUSES)[number]
 export const EMAIL_JOB_STATUS_LABELS: Record<EmailJobStatus, string> = {
   PENDING: 'Waiting',
@@ -119,4 +119,5 @@ export const EMAIL_JOB_STATUS_LABELS: Record<EmailJobStatus, string> = {
   FAILED: 'Failed',
   SKIPPED_NO_SMTP: 'Skipped — SMTP not configured',
   SKIPPED_NO_RECIPIENT: 'Skipped — no recipient',
+  SKIPPED_SUBMITTED: 'Skipped — report already submitted',
 }
