@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { requestId } from 'hono/request-id'
 import { analyticsRoutes } from './analytics/routes'
+import { adminEmailRoutes } from './email/routes'
 import { attachmentsRoutes } from './attachments/routes'
 import { sessionMiddleware } from './auth/middleware'
 import { authRoutes } from './auth/routes'
@@ -47,6 +48,7 @@ export function createApp() {
   api.route('/analytics', analyticsRoutes)
   api.route('/shifts', shiftReportRoutes)
   api.route('/reports', reportsRoutes)
+  api.route('/admin', adminEmailRoutes)
 
   app.route('/api', api)
   return app
