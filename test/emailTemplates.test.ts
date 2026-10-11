@@ -18,7 +18,7 @@ const base: ShiftReportDto = {
       bySide: { STATIC: 2, MOBILE: 0 }, byCategory: [{ label: 'CCTV', count: 2 }],
       escalation: { NOT_REQUIRED: 1, NOT_ESCALATED: 0, ESCALATED: 0, ON_TIME: 1, LATE: 0 }, avgMinutesToResolve: 25, openAtEnd: 1,
     },
-    criticalHigh: [{ id: 1, ref: 'INC-2026-0001', side: 'STATIC', occurredAt: '2026-10-11T06:00:00.000Z', place: 'Weighbridge 04', category: 'CCTV', severity: 'HIGH', status: 'RESOLVED', escalationResult: 'ON_TIME' }],
+    criticalHigh: [{ id: 1, ref: 'INC-2026-0001', side: 'STATIC', occurredAt: '2026-10-11T06:00:00.000Z', place: 'Gate <b>1</b>', category: 'CCTV & Co', severity: 'HIGH', status: 'RESOLVED', escalationResult: 'ON_TIME' }],
     open: [], incidents: [], checks: [],
   },
 }
@@ -33,6 +33,9 @@ describe('email templates', () => {
     expect(m.html).not.toContain('<script>')
     expect(m.html).toContain('https://cr.kenha.test/reports/9')
     expect(m.html).toContain('INC-2026-0001')
+    expect(m.html).toContain('Gate &lt;b&gt;1&lt;/b&gt;')
+    expect(m.html).toContain('CCTV &amp; Co')
+    expect(m.html).not.toContain('<b>1</b>')
     expect(m.html).toContain('Minor issues')
     expect(m.text).toContain('Total incidents: 2')
     expect(m.text).toContain('https://cr.kenha.test/reports/9')

@@ -2,13 +2,13 @@ import { DEFAULT_TIMEZONE } from '@sr/shared'
 import { z } from 'zod'
 import { readDbSettings } from './dbConfig'
 
-const envSchema = z.object({
+export const envSchema = z.object({
   SR_PORT: z.coerce.number().int().positive().default(3000),
   SR_UPLOAD_DIR: z.string().min(1).default('uploads'),
   SR_REPORT_DIR: z.string().min(1).default('reports'),
   SR_SMTP_HOST: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
-  SR_SMTP_PORT: z.coerce.number().int().positive().default(587),
-  SR_SMTP_SECURE: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  SR_SMTP_PORT: z.preprocess((v) => (v === '' ? undefined : v), z.coerce.number().int().positive().default(587)),
+  SR_SMTP_SECURE: z.preprocess((v) => (v === '' ? undefined : v), z.enum(['true', 'false']).default('false').transform((v) => v === 'true')),
   SR_SMTP_USER: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
   SR_SMTP_PASSWORD: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
   SR_SMTP_FROM: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
