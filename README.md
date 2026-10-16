@@ -82,3 +82,14 @@ Configure SMTP through environment variables (on Render, in the service's Enviro
 | `SR_REPORT_DIR` | folder for stored report PDFs. On Render use the persistent disk, e.g. `/var/data/reports` |
 
 Microsoft 365 requires SMTP AUTH to be enabled for the sending mailbox; Gmail requires 2-step verification and an app password. After setting the variables, restart the backend and use **Admin → Settings → Email → Send test email**, then check **Admin → Email log**. Failed emails are retried after 1, 5, 15 and 60 minutes and can be retried by hand from the log.
+
+## Forgot a password (including the only admin)
+
+Any administrator can reset another user's password from **Users → Reset password**. If you are locked out of every admin account, reset it from the command line on a machine whose `Backend/.env` points at the database (locally, or your PC with the Azure values, or the Render shell):
+
+```bash
+pnpm admin:reset-password admin@kenha.co.ke                       # prints a random 16-character temporary password
+pnpm admin:reset-password admin@kenha.co.ke --password "MyTemp2026!"   # or choose one (at least 10 characters)
+```
+
+The command sets the temporary password, makes the user choose a new one at the next sign-in, reactivates the account if it was inactive, signs the user out on every device, and records the reset in the audit log. Nothing changes if the email is unknown. If repeated wrong attempts have locked sign-in (5 in 15 minutes), restart the backend to clear the lock.
