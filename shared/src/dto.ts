@@ -15,8 +15,10 @@ export interface ShiftDto {
   shiftName: string
   startsAt: string
   endsAt: string
+  /** The one officer on duty. */
   supervisor: RosterPersonRef
-  officer: RosterPersonRef
+  /** A second person, only on shifts rostered before the one-officer rule. */
+  officer: RosterPersonRef | null
 }
 
 /** The shift happening now. `shift` is null when nobody has been rostered for it. */
@@ -88,6 +90,8 @@ export interface IncidentListItemDto {
   dashcamStatus: LinkStatus | null
   platform: LookupRef | null
   category: LookupRef
+  /** What the "Other" category means on this incident. */
+  categoryText: string | null
   severity: Severity
   status: IncidentStatus
   escalationResult: EscalationResult
@@ -119,7 +123,8 @@ export interface IncidentDto extends IncidentListItemDto {
   resolution: string | null
   remarks: string | null
   minutesToResolve: number | null
-  officerName: string
+  /** A second person, only on shifts rostered before the one-officer rule. */
+  officerName: string | null
   /** The incident happened on a later calendar day than the shift started (Night shift after midnight). */
   afterMidnight: boolean
   canEdit: boolean
@@ -212,7 +217,7 @@ export interface ReportShiftDto {
   startsAt: string
   endsAt: string
   supervisor: PersonRef
-  officer: PersonRef
+  officer: PersonRef | null
 }
 
 export interface ReportContentDto {
@@ -252,7 +257,7 @@ export interface ShiftReportDto {
   /** DRAFT and past the deadline */
   overdue: boolean
   updatedAt: string
-  /** The supervisor can submit from this time (30 minutes before the shift ends). */
+  /** The officer can submit from this time (30 minutes before the shift ends). */
   submitOpensAt: string
   canEdit: boolean
   canSubmit: boolean

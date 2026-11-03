@@ -1,5 +1,5 @@
 import {
-  incidentPlace, reportSubmitProblems, toDateString,
+  incidentCategory, incidentPlace, reportSubmitProblems, toDateString,
   type EscalationResult, type IncidentSide, type IncidentStatus, type OverallStatus, type Paged, type ReportContentDto, type ReportFieldsDto,
   type ReportListItemDto, type ReportQuery, type ReportStatus, type ReportTimeliness, type ReportUpdateParsed, type Severity, type ShiftReportDto,
 } from '@sr/shared'
@@ -21,7 +21,7 @@ const reportInclude = { shift: { include: shiftInclude }, submittedBy: true } as
 type ReportRow = Prisma.ShiftReportGetPayload<{ include: typeof reportInclude }>
 interface Snapshot { content: ReportContentDto; fields: ReportFieldsDto }
 
-/** The supervisor may submit from this many minutes before the shift ends. */
+/** The officer may submit from this many minutes before the shift ends. */
 export const SUBMIT_OPENS_MINUTES_BEFORE_END = 30
 const submitOpensAt = (endsAt: Date) => new Date(endsAt.getTime() - SUBMIT_OPENS_MINUTES_BEFORE_END * 60_000)
 const fmtTime = (d: Date) => new Intl.DateTimeFormat('en-GB', { timeZone: env.SR_APP_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false }).format(d)
@@ -46,7 +46,7 @@ function incidentInput(r: IncidentListRow): ReportIncidentInput {
   const place = r.side === 'MOBILE' ? `${r.vehicle?.unitId ?? '—'} · ${where}` : r.locationDetail ? `${where} · ${r.locationDetail}` : where
   return {
     id: r.id, ref: r.ref, side: r.side as IncidentSide, occurredAt: r.occurredAt.toISOString(), place,
-    category: r.category.value, severity: r.severity as Severity, status: r.status as IncidentStatus,
+    category: incidentCategory(r), categoryGroup: r.category.value, severity: r.severity as Severity, status: r.status as IncidentStatus,
     escalationResult: r.escalationResult as EscalationResult, minutesToResolve: r.minutesToResolve, description: r.description,
   }
 }
@@ -56,18 +56,18 @@ async function liveContent(shift: ShiftRow, fields: ReportFieldsDto, deadlineMin
   return buildReportContent({
     id: shift.id, shiftDate: toDateString(shift.shiftDate), shiftCode: shift.definition.code, shiftName: shift.definition.name,
     startsAt: shift.startsAt.toISOString(), endsAt: shift.endsAt.toISOString(),
-    supervisor: person(shift.supervisor), officer: person(shift.officer),
+    supervisor: person(shift.supervisor), officer: shift.officer ? person(shift.officer) : null,
   }, rows.map(incidentInput), deadlineMinutes, fields)
 }
 
 type Access = 'supervisor' | 'read'
-function accessFor(actor: SessionUser, shift: { supervisorId: number; officerId: number }): Access | null {
+function accessFor(actor: SessionUser, shift: { supervisorId: number; officerId: number | null }): Access | null {
   if (actor.id === shift.supervisorId) return 'supervisor'
   if (actor.id === shift.officerId || actor.role === 'DEPUTY_DIRECTOR' || actor.role === 'ADMIN') return 'read'
   return null
 }
 
-export function assertCanReadShiftReport(actor: SessionUser, shift: { supervisorId: number; officerId: number }) {
+export function assertCanReadShiftReport(actor: SessionUser, shift: { supervisorId: number; officerId: number | null }) {
   if (!accessFor(actor, shift)) throw new AppError('FORBIDDEN', 'You do not have access to this report')
 }
 
@@ -136,7 +136,7 @@ export async function getReportById(actor: SessionUser, id: number, now = new Da
 
 async function editableRow(actor: SessionUser, shiftId: number, now: Date) {
   const shift = await loadShift(shiftId, now)
-  if (accessFor(actor, shift) !== 'supervisor') throw new AppError('FORBIDDEN', 'Only the Shift Supervisor can edit and submit this report')
+  if (accessFor(actor, shift) !== 'supervisor') throw new AppError('FORBIDDEN', 'Only the officer on this shift can edit and submit this report')
   const { id } = await ensureDraft(prisma, shiftId)
   const row = await loadRow(id)
   if (row.status === 'SUBMITTED') throw new AppError('CONFLICT', 'This report has been submitted and can no longer be changed')

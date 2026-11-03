@@ -6,6 +6,8 @@ import {
 export interface ReportIncidentInput extends ReportIncidentRowDto {
   minutesToResolve: number | null
   description: string
+  /** The listed category to count under in the figures, when `category` also carries typed text. */
+  categoryGroup?: string
 }
 
 const MINUTE = 60_000
@@ -19,7 +21,7 @@ export function computeTimeliness(submittedAt: Date, endsAt: Date, deadlineMinut
   return over <= 0 ? { timeliness: 'ON_TIME', lateMinutes: null } : { timeliness: 'LATE', lateMinutes: Math.ceil(over / MINUTE) }
 }
 
-const toRow = ({ minutesToResolve: _m, description: _d, ...row }: ReportIncidentInput): ReportIncidentRowDto => row
+const toRow = ({ minutesToResolve: _m, description: _d, categoryGroup: _g, ...row }: ReportIncidentInput): ReportIncidentRowDto => row
 
 export function buildReportContent(
   shift: ReportShiftDto,
@@ -38,7 +40,8 @@ export function buildReportContent(
     byStatus[i.status] += 1
     bySide[i.side] += 1
     escalation[i.escalationResult] += 1
-    categories.set(i.category, (categories.get(i.category) ?? 0) + 1)
+    const group = i.categoryGroup ?? i.category
+    categories.set(group, (categories.get(group) ?? 0) + 1)
   }
   const resolved = sorted.filter((i) => i.minutesToResolve !== null)
   const avgMinutesToResolve = resolved.length ? Math.round(resolved.reduce((s, i) => s + i.minutesToResolve!, 0) / resolved.length) : null

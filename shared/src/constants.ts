@@ -107,7 +107,7 @@ export type EmailJobType = (typeof EMAIL_JOB_TYPES)[number]
 export const EMAIL_JOB_TYPE_LABELS: Record<EmailJobType, string> = {
   REPORT_SUBMITTED: 'Report submitted',
   REPORT_OVERDUE_DD: 'Report overdue (Deputy Director)',
-  REPORT_OVERDUE_SUPERVISOR: 'Report overdue (supervisor reminder)',
+  REPORT_OVERDUE_SUPERVISOR: 'Report overdue (officer reminder)',
   TEST: 'Test email',
 }
 export const EMAIL_JOB_STATUSES = ['PENDING', 'SENDING', 'SENT', 'FAILED', 'SKIPPED_NO_SMTP', 'SKIPPED_NO_RECIPIENT', 'SKIPPED_SUBMITTED'] as const

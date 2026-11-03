@@ -1,5 +1,5 @@
 import {
-  addDays, INCIDENT_SIDES, OUTSTANDING_STATUSES, SEVERITIES, SEVERITY_LABELS, toDateString,
+  addDays, incidentCategory, INCIDENT_SIDES, OUTSTANDING_STATUSES, SEVERITIES, SEVERITY_LABELS, toDateString,
   type AttentionItemDto, type CountByDto, type DayNightDto, type HotspotDto, type IncidentSide, type IncidentStatus, type IncidentSummaryDto,
   type IncidentTrendDto, type MobileHealthDto, type Severity, type SideStats, type SideTrendDto,
 } from '@sr/shared'
@@ -179,7 +179,7 @@ export async function incidentAttention(side?: IncidentSide, now = new Date()): 
     occurredAt: r.occurredAt.toISOString(),
     location: r.location?.value ?? r.locationText ?? '—',
     vehicle: r.vehicle?.unitId ?? null,
-    category: r.category.value,
+    category: incidentCategory(r),
     severity: r.severity as Severity,
     status: r.status as IncidentStatus,
     reasons: attentionReasons(r, now, recurring, settings),

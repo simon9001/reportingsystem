@@ -16,7 +16,7 @@ const user = async (email: string, fullName: string, role: string, password: str
 await user('e2e-admin@test.local', 'E2E Administrator', 'ADMIN', 'AdminTemp2026', true)
 await user('e2e-dd@test.local', 'Grace Wanjiru', 'DEPUTY_DIRECTOR', 'DirectorPass2026')
 const sup = await user('e2e-sup@test.local', 'Brian Otieno', 'OFFICER', 'SupervisorPass2026')
-const off = await user('e2e-off@test.local', 'Mary Wambui', 'OFFICER', 'OfficerPass2026')
+await user('e2e-off@test.local', 'Mary Wambui', 'OFFICER', 'OfficerPass2026')
 await prisma.vehicle.create({ data: { unitId: 'KDG 143S', description: 'Mobile weighbridge unit' } })
 
 const defs = await prisma.shiftDefinition.findMany({ where: { isActive: true } })
@@ -24,13 +24,13 @@ const now = resolveShift(new Date(), defs, env.SR_APP_TIMEZONE)
 if (!now) throw new Error('E2E prepare: no active shift definition covers the current time; cannot roster the current shift.')
 const w = shiftWindow(now.shiftDate, now.definition, env.SR_APP_TIMEZONE)
 await prisma.shift.create({
-  data: { shiftDate: fromDateString(now.shiftDate), shiftDefinitionId: now.definition.id, startsAt: w.startsAt, endsAt: w.endsAt, supervisorId: sup.id, officerId: off.id },
+  data: { shiftDate: fromDateString(now.shiftDate), shiftDefinitionId: now.definition.id, startsAt: w.startsAt, endsAt: w.endsAt, supervisorId: sup.id },
 })
 // The previous shift (already ended) is the one covering the moment just before the current one started; its report can be submitted.
 const prev = resolveShift(new Date(w.startsAt.getTime() - 1), defs, env.SR_APP_TIMEZONE)
 if (!prev) throw new Error('E2E prepare: no active shift definition covers the time before the current shift; cannot roster the previous shift.')
 await prisma.shift.create({
-  data: { shiftDate: fromDateString(prev.shiftDate), shiftDefinitionId: prev.definition.id, startsAt: prev.startsAt, endsAt: prev.endsAt, supervisorId: sup.id, officerId: off.id },
+  data: { shiftDate: fromDateString(prev.shiftDate), shiftDefinitionId: prev.definition.id, startsAt: prev.startsAt, endsAt: prev.endsAt, supervisorId: sup.id },
 })
 console.log('E2E database ready.')
 await prisma.$disconnect()

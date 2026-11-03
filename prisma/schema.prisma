@@ -103,7 +103,7 @@ model Vehicle {
   incidents   Incident[]
 }
 
-/// One roster row per date + shift. startsAt/endsAt are fixed when the row is created.
+/// One roster row per date + shift, with one officer on duty (supervisorId). officerId is only set on shifts rostered before that rule. startsAt/endsAt are fixed when the row is created.
 model Shift {
   id                Int             @id @default(autoincrement())
   shiftDate         DateTime        @db.Date
@@ -111,12 +111,12 @@ model Shift {
   startsAt          DateTime
   endsAt            DateTime
   supervisorId      Int
-  officerId         Int
+  officerId         Int?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   definition        ShiftDefinition @relation(fields: [shiftDefinitionId], references: [id])
   supervisor        User            @relation("ShiftSupervisor", fields: [supervisorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  officer           User            @relation("ShiftOfficer", fields: [officerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  officer           User?           @relation("ShiftOfficer", fields: [officerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   incidents         Incident[]
   report            ShiftReport?
 
@@ -152,6 +152,7 @@ model Incident {
   locationId        Int?
   locationDetail    String?              @db.NVarChar(200)
   categoryId        Int
+  categoryText      String?              @db.NVarChar(100)
   severity          String               @db.NVarChar(20)
   severityRank      Int
   reportedById      Int

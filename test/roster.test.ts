@@ -30,8 +30,8 @@ describe('roster', () => {
     const res = await call(app, 'PUT', '/api/roster', {
       cookie: dd.cookie,
       body: { entries: [
-        { shiftDate: FUTURE_MONDAY, shiftCode: 'DAY', supervisorId: antony.id, officerId: simon.id },
-        { shiftDate: FUTURE_MONDAY, shiftCode: 'NIGHT', supervisorId: simon.id, officerId: antony.id },
+        { shiftDate: FUTURE_MONDAY, shiftCode: 'DAY', supervisorId: antony.id },
+        { shiftDate: FUTURE_MONDAY, shiftCode: 'NIGHT', supervisorId: simon.id },
       ] },
     })
     expect(res.status).toBe(200)
@@ -45,26 +45,25 @@ describe('roster', () => {
     const { dd, antony, simon } = await setup()
     const inactive = await createUser('OFFICER', { isActive: false })
     const put = (e: object) => call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ shiftDate: FUTURE_MONDAY, shiftCode: 'DAY', ...e }] } })
-    expect((await put({ supervisorId: antony.id, officerId: antony.id })).status).toBe(400)
-    expect((await put({ supervisorId: dd.user.id, officerId: simon.id })).status).toBe(400)
-    expect((await put({ supervisorId: inactive.id, officerId: simon.id })).status).toBe(400)
-    expect((await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ shiftDate: FUTURE_MONDAY, shiftCode: 'EVENING', supervisorId: antony.id, officerId: simon.id }] } })).status).toBe(400)
+    expect((await put({ supervisorId: dd.user.id })).status).toBe(400)
+    expect((await put({ supervisorId: inactive.id })).status).toBe(400)
+    expect((await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ shiftDate: FUTURE_MONDAY, shiftCode: 'EVENING', supervisorId: antony.id }] } })).status).toBe(400)
     expect(await prisma.shift.count()).toBe(0)
   })
 
   it('rejects the same date and shift twice in one save without saving anything', async () => {
     const { dd, antony, simon } = await setup()
-    const e = { shiftDate: FUTURE_MONDAY, shiftCode: 'DAY', supervisorId: antony.id, officerId: simon.id }
-    const res = await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [e, { ...e, supervisorId: simon.id, officerId: antony.id }] } })
+    const e = { shiftDate: FUTURE_MONDAY, shiftCode: 'DAY', supervisorId: antony.id }
+    const res = await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [e, { ...e, supervisorId: simon.id }] } })
     expect(res.status).toBe(400)
     expect(await prisma.shift.count()).toBe(0)
   })
 
   it('updates people on an existing shift and audits it', async () => {
     const { dd, antony, simon } = await setup()
-    const e = { shiftDate: FUTURE_MONDAY, shiftCode: 'DAY', supervisorId: antony.id, officerId: simon.id }
+    const e = { shiftDate: FUTURE_MONDAY, shiftCode: 'DAY', supervisorId: antony.id }
     await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [e] } })
-    const res = await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ ...e, supervisorId: simon.id, officerId: antony.id }] } })
+    const res = await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ ...e, supervisorId: simon.id }] } })
     expect(((await res.json()) as ShiftDto[])[0]!.supervisor.id).toBe(simon.id)
     expect(await prisma.shift.count()).toBe(1)
     expect(await prisma.auditLog.count({ where: { entity: 'Shift', action: 'UPDATE' } })).toBe(1)
@@ -72,14 +71,14 @@ describe('roster', () => {
 
   it('keeps existing shift windows when shift times change later', async () => {
     const { dd, antony, simon } = await setup()
-    await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ shiftDate: FUTURE_MONDAY, shiftCode: 'DAY', supervisorId: antony.id, officerId: simon.id }] } })
+    await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ shiftDate: FUTURE_MONDAY, shiftCode: 'DAY', supervisorId: antony.id }] } })
     const admin = await loginAs(app, 'ADMIN')
     const defs = (await (await call(app, 'GET', '/api/config/shift-definitions', { cookie: admin.cookie })).json()) as ShiftDefinitionDto[]
     await call(app, 'PUT', '/api/config/shift-definitions', { cookie: admin.cookie, body: [
       { id: defs[0]!.id, name: 'Day', startTime: '07:00', endTime: '16:00' },
       { id: defs[1]!.id, name: 'Night', startTime: '16:00', endTime: '07:00' },
     ] })
-    await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ shiftDate: '2030-01-08', shiftCode: 'DAY', supervisorId: antony.id, officerId: simon.id }] } })
+    await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ shiftDate: '2030-01-08', shiftCode: 'DAY', supervisorId: antony.id }] } })
     const list = (await (await call(app, 'GET', `/api/roster?from=${FUTURE_MONDAY}&to=2030-01-08`, { cookie: dd.cookie })).json()) as ShiftDto[]
     expect(list.map((s) => s.startsAt)).toEqual(['2030-01-07T05:00:00.000Z', '2030-01-08T04:00:00.000Z'])
   })
@@ -94,19 +93,19 @@ describe('roster', () => {
 
   it('protects shifts that have ended: only admins may create or change them', async () => {
     const { dd, antony, simon } = await setup()
-    const past = { shiftDate: '2020-01-01', shiftCode: 'DAY', supervisorId: antony.id, officerId: simon.id }
+    const past = { shiftDate: '2020-01-01', shiftCode: 'DAY', supervisorId: antony.id }
     expect((await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [past] } })).status).toBe(409)
     const admin = await loginAs(app, 'ADMIN')
     expect((await call(app, 'PUT', '/api/roster', { cookie: admin.cookie, body: { entries: [past] } })).status).toBe(200)
-    expect((await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ ...past, supervisorId: simon.id, officerId: antony.id }] } })).status).toBe(409)
+    expect((await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ ...past, supervisorId: simon.id }] } })).status).toBe(409)
   })
 
   it('deletes future shifts but not started ones', async () => {
     const { dd, antony, simon } = await setup()
-    const [future] = (await (await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ shiftDate: FUTURE_MONDAY, shiftCode: 'DAY', supervisorId: antony.id, officerId: simon.id }] } })).json()) as ShiftDto[]
+    const [future] = (await (await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ shiftDate: FUTURE_MONDAY, shiftCode: 'DAY', supervisorId: antony.id }] } })).json()) as ShiftDto[]
     expect((await call(app, 'DELETE', `/api/roster/${future!.id}`, { cookie: dd.cookie })).status).toBe(204)
     const admin = await loginAs(app, 'ADMIN')
-    const [past] = (await (await call(app, 'PUT', '/api/roster', { cookie: admin.cookie, body: { entries: [{ shiftDate: '2020-01-01', shiftCode: 'DAY', supervisorId: antony.id, officerId: simon.id }] } })).json()) as ShiftDto[]
+    const [past] = (await (await call(app, 'PUT', '/api/roster', { cookie: admin.cookie, body: { entries: [{ shiftDate: '2020-01-01', shiftCode: 'DAY', supervisorId: antony.id }] } })).json()) as ShiftDto[]
     expect((await call(app, 'DELETE', `/api/roster/${past!.id}`, { cookie: admin.cookie })).status).toBe(409)
   })
 
@@ -114,19 +113,33 @@ describe('roster', () => {
     const { dd, antony, simon } = await setup()
     const peter = await createUser('OFFICER', { fullName: 'Peter Kamau' })
     await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [
-      { shiftDate: FUTURE_MONDAY, shiftCode: 'DAY', supervisorId: antony.id, officerId: simon.id },
-      { shiftDate: '2030-01-08', shiftCode: 'NIGHT', supervisorId: peter.id, officerId: simon.id },
+      { shiftDate: FUTURE_MONDAY, shiftCode: 'DAY', supervisorId: antony.id },
+      { shiftDate: '2030-01-08', shiftCode: 'NIGHT', supervisorId: peter.id },
     ] } })
     await prisma.user.update({ where: { id: peter.id }, data: { isActive: false } })
 
-    const res = await call(app, 'POST', '/api/roster/copy-week', { cookie: dd.cookie, body: { fromWeekStart: FUTURE_MONDAY, toWeekStart: '2030-01-14', swapRoles: true } })
+    const res = await call(app, 'POST', '/api/roster/copy-week', { cookie: dd.cookie, body: { fromWeekStart: FUTURE_MONDAY, toWeekStart: '2030-01-14' } })
     expect((await res.json()) as CopyWeekResult).toEqual({ created: 1, skipped: 1 })
     const copied = (await (await call(app, 'GET', '/api/roster?from=2030-01-14&to=2030-01-20', { cookie: dd.cookie })).json()) as ShiftDto[]
     expect(copied).toHaveLength(1)
-    expect(copied[0]).toMatchObject({ shiftDate: '2030-01-14', shiftCode: 'DAY', supervisor: { id: simon.id }, officer: { id: antony.id } })
+    expect(copied[0]).toMatchObject({ shiftDate: '2030-01-14', shiftCode: 'DAY', supervisor: { id: antony.id }, officer: null })
 
-    const again = await call(app, 'POST', '/api/roster/copy-week', { cookie: dd.cookie, body: { fromWeekStart: FUTURE_MONDAY, toWeekStart: '2030-01-14', swapRoles: true } })
+    const again = await call(app, 'POST', '/api/roster/copy-week', { cookie: dd.cookie, body: { fromWeekStart: FUTURE_MONDAY, toWeekStart: '2030-01-14' } })
     expect((await again.json()) as CopyWeekResult).toEqual({ created: 0, skipped: 2 })
+  })
+
+  it('keeps one officer on a shift, and removes a second person when a shift is saved again', async () => {
+    const { dd, antony, simon } = await setup()
+    const entry = { shiftDate: FUTURE_MONDAY, shiftCode: 'DAY', supervisorId: antony.id }
+    // A second person in the request is ignored.
+    const [saved] = (await (await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ ...entry, officerId: simon.id }] } })).json()) as ShiftDto[]
+    expect(saved).toMatchObject({ supervisor: { id: antony.id }, officer: null })
+    // A shift rostered before the rule still shows both people until it is saved again.
+    await prisma.shift.update({ where: { id: saved!.id }, data: { officerId: simon.id } })
+    const legacy = (await (await call(app, 'GET', `/api/roster?from=${FUTURE_MONDAY}&to=${FUTURE_MONDAY}`, { cookie: dd.cookie })).json()) as ShiftDto[]
+    expect(legacy[0]).toMatchObject({ officer: { id: simon.id } })
+    const [resaved] = (await (await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [entry] } })).json()) as ShiftDto[]
+    expect(resaved).toMatchObject({ supervisor: { id: antony.id }, officer: null })
   })
 
   it('tells each user the current shift and their role on it', async () => {
@@ -138,7 +151,7 @@ describe('roster', () => {
     expect(before.currentShift).toMatchObject({ shiftDate: now.shiftDate, shiftCode: now.definition.code, shift: null, myRole: null })
 
     const admin = await loginAs(app, 'ADMIN')
-    await call(app, 'PUT', '/api/roster', { cookie: admin.cookie, body: { entries: [{ shiftDate: now.shiftDate, shiftCode: now.definition.code, supervisorId: antony.id, officerId: simon.id }] } })
+    await call(app, 'PUT', '/api/roster', { cookie: admin.cookie, body: { entries: [{ shiftDate: now.shiftDate, shiftCode: now.definition.code, supervisorId: antony.id }] } })
 
     const asAntony = (await (await call(app, 'GET', '/api/auth/me', { cookie: await login(app, antony.email) })).json()) as MeResponse
     const asSimon = (await (await call(app, 'GET', '/api/roster/current', { cookie: await login(app, simon.email) })).json()) as MeResponse['currentShift']

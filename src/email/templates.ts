@@ -66,11 +66,11 @@ export function reportOverdueDdEmail(r: ShiftReportDto, ctx: Ctx): EmailContent 
   const due = fmtTime(r.content.deadline, ctx.timeZone)
   const sup = r.content.shift.supervisor.fullName
   const html = layout(`Overdue: ${title(r)}`, [
-    p(`The report was due by <strong>${escapeHtml(due)}</strong> and has not been submitted by the Shift Supervisor, <strong>${escapeHtml(sup)}</strong>.`),
+    p(`The report was due by <strong>${escapeHtml(due)}</strong> and has not been submitted by the officer on duty, <strong>${escapeHtml(sup)}</strong>.`),
     `<ul style="margin:0 0 12px;padding-left:18px;font-size:14px">${figuresLines(r).map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>`,
     p('The current draft is attached as a PDF.'),
   ].join(''), { href: link(r, ctx), label: 'Open in Control Room' })
-  const text = [subject, '', `Due by ${due}. Shift Supervisor: ${sup}.`, '', ...figuresLines(r), '', `Open in Control Room: ${link(r, ctx)}`, 'The current draft is attached as a PDF.'].join('\n')
+  const text = [subject, '', `Due by ${due}. Officer on duty: ${sup}.`, '', ...figuresLines(r), '', `Open in Control Room: ${link(r, ctx)}`, 'The current draft is attached as a PDF.'].join('\n')
   return { subject, html, text }
 }
 

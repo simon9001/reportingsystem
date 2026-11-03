@@ -15,6 +15,7 @@ const optionalId = z.number().int().positive().max(2147483647).nullable().option
 const commonFields = {
   occurredAt: instant,
   categoryId: z.number({ error: 'Choose a category' }).int().positive('Choose a category').max(2147483647, 'Choose a category'),
+  categoryText: optionalText(100),
   severity: z.enum(SEVERITIES, { error: 'Choose a severity' }),
   description: z.string().trim().min(3, 'Describe what happened').max(2000, 'At most 2000 characters'),
   immediateAction: optionalText(2000),

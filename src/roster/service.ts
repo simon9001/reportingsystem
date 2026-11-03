@@ -27,7 +27,7 @@ export function toShiftDto(s: ShiftWithPeople): ShiftDto {
     startsAt: s.startsAt.toISOString(),
     endsAt: s.endsAt.toISOString(),
     supervisor: toRosterPerson(s.supervisor),
-    officer: toRosterPerson(s.officer),
+    officer: s.officer ? toRosterPerson(s.officer) : null,
   }
 }
 
@@ -65,7 +65,7 @@ export async function upsertRoster(actor: SessionUser, entries: RosterEntryInput
       throw new AppError('VALIDATION_ERROR', `Unknown shift "${e.shiftCode}"`, { entries: `Unknown shift "${e.shiftCode}"` })
     }
   }
-  await assertRosterable(prisma, [...new Set(entries.flatMap((e) => [e.supervisorId, e.officerId]))])
+  await assertRosterable(prisma, [...new Set(entries.map((e) => e.supervisorId))])
   const isAdmin = actor.role === 'ADMIN'
 
   const result = await prisma.$transaction(async (tx) => {
@@ -78,14 +78,14 @@ export async function upsertRoster(actor: SessionUser, entries: RosterEntryInput
         include,
       })
       if (existing) {
-        if (existing.supervisorId === e.supervisorId && existing.officerId === e.officerId) {
+        if (existing.supervisorId === e.supervisorId && existing.officerId === null) {
           results.push(existing)
           continue
         }
         if (existing.endsAt <= now && !isAdmin) throw endedError(def.name, e.shiftDate)
         const updated = await tx.shift.update({
           where: { id: existing.id },
-          data: { supervisorId: e.supervisorId, officerId: e.officerId },
+          data: { supervisorId: e.supervisorId, officerId: null },
           include,
         })
         await writeAudit(tx, { userId: actor.id, entity: 'Shift', entityId: updated.id, action: 'UPDATE', before: toShiftDto(existing), after: toShiftDto(updated), ip })
@@ -94,7 +94,7 @@ export async function upsertRoster(actor: SessionUser, entries: RosterEntryInput
         const w = shiftWindow(e.shiftDate, def, env.SR_APP_TIMEZONE)
         if (w.endsAt <= now && !isAdmin) throw endedError(def.name, e.shiftDate)
         const created = await tx.shift.create({
-          data: { shiftDate, shiftDefinitionId: def.id, startsAt: w.startsAt, endsAt: w.endsAt, supervisorId: e.supervisorId, officerId: e.officerId },
+          data: { shiftDate, shiftDefinitionId: def.id, startsAt: w.startsAt, endsAt: w.endsAt, supervisorId: e.supervisorId },
           include,
         })
         await writeAudit(tx, { userId: actor.id, entity: 'Shift', entityId: created.id, action: 'CREATE', after: toShiftDto(created), ip })
@@ -120,7 +120,7 @@ export async function deleteRosterShift(actor: SessionUser, id: number, ip: stri
 
 export async function copyWeek(
   actor: SessionUser,
-  input: { fromWeekStart: string; toWeekStart: string; swapRoles: boolean },
+  input: { fromWeekStart: string; toWeekStart: string },
   ip: string | null,
   now = new Date(),
 ): Promise<CopyWeekResult> {
@@ -134,19 +134,17 @@ export async function copyWeek(
   await prisma.$transaction(async (tx) => {
     for (const s of source) {
       const targetDate = addDays(input.toWeekStart, daysBetween(input.fromWeekStart, toDateString(s.shiftDate)))
-      const supervisorId = input.swapRoles ? s.officerId : s.supervisorId
-      const officerId = input.swapRoles ? s.supervisorId : s.officerId
       const exists = await tx.shift.findUnique({
         where: { shiftDate_shiftDefinitionId: { shiftDate: fromDateString(targetDate), shiftDefinitionId: s.shiftDefinitionId } },
       })
-      const peopleOk = [s.supervisor, s.officer].every((u) => u.isActive && u.role === 'OFFICER')
+      const peopleOk = s.supervisor.isActive && s.supervisor.role === 'OFFICER'
       const w = shiftWindow(targetDate, s.definition, env.SR_APP_TIMEZONE)
       if (exists || !peopleOk || !s.definition.isActive || (w.endsAt <= now && actor.role !== 'ADMIN')) {
         skipped += 1
         continue
       }
       const row = await tx.shift.create({
-        data: { shiftDate: fromDateString(targetDate), shiftDefinitionId: s.shiftDefinitionId, startsAt: w.startsAt, endsAt: w.endsAt, supervisorId, officerId },
+        data: { shiftDate: fromDateString(targetDate), shiftDefinitionId: s.shiftDefinitionId, startsAt: w.startsAt, endsAt: w.endsAt, supervisorId: s.supervisorId },
         include,
       })
       await writeAudit(tx, { userId: actor.id, entity: 'Shift', entityId: row.id, action: 'CREATE', after: toShiftDto(row), ip })
@@ -174,7 +172,7 @@ export async function getCurrentShift(userId: number | null, now = new Date()): 
     const myRole =
       userId === null ? null
         : row.supervisor.id === userId && rosterable(row.supervisor) ? 'SUPERVISOR'
-        : row.officer.id === userId && rosterable(row.officer) ? 'OFFICER'
+        : row.officer?.id === userId && rosterable(row.officer) ? 'OFFICER'
         : null
     return {
       shiftDate: toDateString(row.shiftDate),

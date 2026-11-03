@@ -1,5 +1,5 @@
 import {
-  ESCALATION_RESULT_LABELS, INCIDENT_STATUS_LABELS, LINK_STATUS_LABELS, SEVERITY_LABELS, VEHICLE_STATUS_LABELS,
+  ESCALATION_RESULT_LABELS, incidentCategory, INCIDENT_STATUS_LABELS, LINK_STATUS_LABELS, SEVERITY_LABELS, VEHICLE_STATUS_LABELS,
   type EscalationResult, type IncidentQuery, type IncidentStatus, type LinkStatus, type Severity, type VehicleStatus,
 } from '@sr/shared'
 import ExcelJS from 'exceljs'
@@ -48,7 +48,7 @@ const tracking = (resolutionHeader: string): Column[] => [
   { header: 'Escalation Check', width: 14, value: (r) => ESCALATION_RESULT_LABELS[r.escalationResult as EscalationResult] },
 ]
 const severity: Column = { header: 'Severity', width: 10, value: (r) => SEVERITY_LABELS[r.severity as Severity] }
-const category: Column = { header: 'Category', width: 16, value: (r) => safeText(r.category.value) }
+const category: Column = { header: 'Category', width: 16, value: (r) => safeText(incidentCategory(r)) }
 
 /** Incident Register sheet order. */
 const STATIC_COLUMNS: Column[] = [

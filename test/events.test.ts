@@ -79,7 +79,7 @@ describe('live updates', () => {
     const b = await createUser('OFFICER')
     const seen: LiveTopic[][] = []
     const off = subscribe((t) => seen.push(t))
-    await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ shiftDate: '2030-01-07', shiftCode: 'DAY', supervisorId: a.id, officerId: b.id }] } })
+    await call(app, 'PUT', '/api/roster', { cookie: dd.cookie, body: { entries: [{ shiftDate: '2030-01-07', shiftCode: 'DAY', supervisorId: a.id }] } })
     off()
     expect(seen).toContainEqual(['roster', 'audit'])
   })

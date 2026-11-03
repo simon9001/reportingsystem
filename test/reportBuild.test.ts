@@ -18,6 +18,18 @@ const inc = (o: Partial<ReportIncidentInput>): ReportIncidentInput => {
   }
 }
 
+describe('typed "Other" categories', () => {
+  it('shows the text on the row but counts them together in the figures', () => {
+    const c = buildReportContent(shift, [
+      inc({ category: 'Other: Fallen tree', categoryGroup: 'Other' }),
+      inc({ category: 'Other: Flooding', categoryGroup: 'Other' }),
+    ], 30, { overview: 'x', pendingActions: null })
+    expect(c.figures.byCategory).toEqual([{ label: 'Other', count: 2 }])
+    expect(c.incidents.map((r) => r.category)).toEqual(['Other: Fallen tree', 'Other: Flooding'])
+    expect(c.incidents[0]).not.toHaveProperty('categoryGroup')
+  })
+})
+
 /** The user manual's worked example: 5 incidents. */
 function manualExample() {
   n = 0

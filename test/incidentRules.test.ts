@@ -38,7 +38,7 @@ describe('canEditIncident', () => {
 
 describe('buildUpdateEvents', () => {
   const before: IncidentSnapshot = {
-    occurredAt: '2026-09-28T22:15:00.000Z', locationId: 1, locationDetail: null, categoryId: 2, severity: 'HIGH',
+    occurredAt: '2026-09-28T22:15:00.000Z', locationId: 1, locationDetail: null, categoryId: 2, categoryText: null, severity: 'HIGH',
     description: 'Camera offline', immediateAction: null, escalatedTo: null, escalatedAt: null, assignedTo: null,
     status: 'OPEN', resolvedAt: null, resolution: null,
     locationText: null, vehicleId: null, vehicleStatus: null, gpsStatus: null, dashcamStatus: null, platformId: null, remarks: null,

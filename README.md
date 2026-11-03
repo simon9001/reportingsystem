@@ -22,7 +22,13 @@ Incidents come in two kinds, following the Excel prototype:
 - **Static weighbridges** use the Incident Register flow and are numbered INC-YYYY-NNNN.
 - **Mobile weighbridges** use the Mobile Weighbridge flow (vehicle, GPS/dashcam status, platform) and are numbered MWB-YYYY-NNNN.
 
+Each shift has one officer on duty, who logs its incidents and submits its report. Shifts rostered earlier with two people keep both names, and both can still see them.
+
 Manage the mobile units under Admin → Vehicles.
+
+Editing an incident can change its kind until the shift's report is submitted. It then gets a new number with the matching prefix, and its timeline records the old one.
+
+Choosing the category named **Other** (or Others) asks what it is in the person's own words. The text shows wherever the category does; figures and charts count these incidents together under Other.
 
 Tests use a separate database. Copy `.env.test.example` to `.env.test` (DB_DATABASE=shiftreporting_test), then run `pnpm test`.
 
@@ -68,7 +74,7 @@ Notes:
 
 ## Email and shift reports
 
-At the end of each shift the Shift Supervisor submits the shift report. The report is frozen, a PDF is stored, and every address in **Settings → System settings → Deputy Director emails** gets an email with the PDF attached. If a shift has at least one incident and its report is not submitted within the report deadline (default 30 minutes after the shift ends), the Deputy Director gets an overdue email with the draft PDF and the supervisor gets a reminder (once each). A shift with no incidents gets neither.
+At the end of each shift the officer on duty submits the shift report. The report is frozen, a PDF is stored, and every address in **Settings → System settings → Deputy Director emails** gets an email with the PDF attached. If a shift has at least one incident and its report is not submitted within the report deadline (default 30 minutes after the shift ends), the Deputy Director gets an overdue email with the draft PDF and the officer gets a reminder (once each). A shift with no incidents gets neither.
 
 Configure SMTP through environment variables (on Render, in the service's Environment tab). All are optional: without `SR_SMTP_HOST` emails are logged as skipped.
 

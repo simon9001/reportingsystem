@@ -98,7 +98,7 @@ export async function runEmailJobs(now = new Date(), mailer: Mailer | null = get
   return result
 }
 
-/** Queues the overdue emails (DD with draft PDF, supervisor reminder) once per shift that has incidents, for deadlines in the last 24 hours. */
+/** Queues the overdue emails (DD with draft PDF, officer reminder) once per shift that has incidents, for deadlines in the last 24 hours. */
 export async function queueOverdueReports(now = new Date()): Promise<number> {
   const { reportDeadlineMinutes, ddEmails } = await getSettings()
   const deadlineMs = reportDeadlineMinutes * 60_000

@@ -135,7 +135,7 @@ describe('users', () => {
     expect(((await res.json()) as UpdateUserResult).futureShifts).toBe(1)
     const roster = (await (await call(app, 'GET', '/api/roster?from=2030-01-07&to=2030-01-07', { cookie })).json()) as ShiftDto[]
     expect(roster[0]!.supervisor.rosterable).toBe(false)
-    expect(roster[0]!.officer.rosterable).toBe(true)
+    expect(roster[0]!.officer!.rosterable).toBe(true)
     const noop = await call(app, 'PATCH', `/api/users/${antony.id}`, { cookie, body: { fullName: 'Antony O' } })
     expect(((await noop.json()) as UpdateUserResult).futureShifts).toBe(0)
   })

@@ -34,6 +34,7 @@ export function buildIncidentWhere(q: IncidentQuery, tz = env.SR_APP_TIMEZONE): 
             { locationDetail: { contains: text } },
             { location: { value: { contains: text } } },
             { category: { value: { contains: text } } },
+            { categoryText: { contains: text } },
             { reportedBy: { fullName: { contains: text } } },
             { locationText: { contains: text } },
             { remarks: { contains: text } },

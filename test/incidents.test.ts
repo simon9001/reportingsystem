@@ -278,11 +278,80 @@ describe('mobile weighbridge incidents', () => {
     expect(res.status).toBe(200)
   })
 
-  it('never lets an edit change the side', async () => {
+  it('changes mobile to static: new number, mobile fields cleared, recorded on the timeline', async () => {
     const created = (await (await post(mobileBody(world))).json()) as IncidentDto
-    const flipped = await call(app, 'PATCH', `/api/incidents/${created.id}`, { cookie: supCookie, body: incidentBody(world, { occurredAt: created.occurredAt }) })
-    expect(flipped.status).toBe(400)
-    expect((await fieldsOf(flipped)).side).toBe('The side cannot be changed')
+    expect(created.ref).toMatch(/^MWB-/)
+    const res = await call(app, 'PATCH', `/api/incidents/${created.id}`, { cookie: supCookie, body: incidentBody(world, { side: 'STATIC', occurredAt: created.occurredAt }) })
+    expect(res.status).toBe(200)
+    const dto = (await res.json()) as IncidentDto
+    expect(dto.ref).toMatch(/^INC-/)
+    expect(dto).toMatchObject({ id: created.id, side: 'STATIC', vehicle: null, vehicleStatus: null, gpsStatus: null, dashcamStatus: null, platform: null, remarks: null, locationText: null })
+    expect(dto.location?.id).toBe(world.location.id)
+    expect(dto.events.map((e) => e.summary)).toContainEqual(`Changed from Mobile to Static weighbridge (${created.ref} is now ${dto.ref})`)
+    const audit = await prisma.auditLog.findFirstOrThrow({ where: { entity: 'Incident', entityId: String(created.id), action: 'UPDATE' } })
+    expect(audit.beforeJson).toContain(created.ref)
+    expect(audit.afterJson).toContain(dto.ref)
+    expect((await call(app, 'GET', `/api/incidents/${dto.ref}`, { cookie: supCookie })).status).toBe(200)
+  })
+
+  it('changes static to mobile, and needs the mobile details', async () => {
+    const created = (await (await post(incidentBody(world))).json()) as IncidentDto
+    const missing = await call(app, 'PATCH', `/api/incidents/${created.id}`, { cookie: supCookie, body: incidentBody(world, { side: 'MOBILE', occurredAt: created.occurredAt }) })
+    expect(missing.status).toBe(400)
+    const res = await call(app, 'PATCH', `/api/incidents/${created.id}`, { cookie: supCookie, body: mobileBody(world, { occurredAt: created.occurredAt }) })
+    expect(res.status).toBe(200)
+    const dto = (await res.json()) as IncidentDto
+    expect(dto.ref).toMatch(/^MWB-/)
+    expect(dto).toMatchObject({ side: 'MOBILE', locationText: 'Mlolongo', location: null, locationDetail: null })
+    expect(dto.vehicle?.id).toBe(world.vehicle.id)
+  })
+
+  it('keeps the number when the side stays the same', async () => {
+    const created = (await (await post(mobileBody(world))).json()) as IncidentDto
+    const res = await call(app, 'PATCH', `/api/incidents/${created.id}`, { cookie: supCookie, body: mobileBody(world, { occurredAt: created.occurredAt, status: 'MONITORING' }) })
+    expect(((await res.json()) as IncidentDto).ref).toBe(created.ref)
+  })
+
+  it('will not change the side once the report is submitted, even for an admin', async () => {
+    const created = (await (await post(mobileBody(world))).json()) as IncidentDto
+    await prisma.shiftReport.create({ data: { shiftId: created.shiftId, status: 'SUBMITTED', submittedAt: new Date() } })
+    const admin = await loginAs(app, 'ADMIN')
+    const res = await call(app, 'PATCH', `/api/incidents/${created.id}`, { cookie: admin.cookie, body: incidentBody(world, { side: 'STATIC', occurredAt: created.occurredAt }) })
+    expect(res.status).toBe(409)
+    expect((await prisma.incident.findUniqueOrThrow({ where: { id: created.id } })).ref).toBe(created.ref)
+    expect((await call(app, 'PATCH', `/api/incidents/${created.id}`, { cookie: admin.cookie, body: mobileBody(world, { occurredAt: created.occurredAt, status: 'MONITORING' }) })).status).toBe(200)
+  })
+
+  describe('the Other category', () => {
+    beforeEach(() => prisma.lookupItem.update({ where: { id: world.inactiveCategory.id }, data: { isActive: true } }).then(() => undefined))
+    const other = () => world.inactiveCategory.id
+
+    it('asks what it is, and stores and searches the typed text', async () => {
+      const missing = await post(incidentBody(world, { categoryId: other() }))
+      expect(missing.status).toBe(400)
+      expect((await fieldsOf(missing)).categoryText).toBe('Say what the category is')
+      const res = await post(incidentBody(world, { categoryId: other(), categoryText: ' Fallen tree ' }))
+      expect(res.status).toBe(201)
+      const dto = (await res.json()) as IncidentDto
+      expect(dto).toMatchObject({ categoryText: 'Fallen tree' })
+      expect(dto.category.value).toBe('Other')
+      const found = (await (await call(app, 'GET', '/api/incidents?q=fallen', { cookie: supCookie })).json()) as { total: number }
+      expect(found.total).toBe(1)
+    })
+
+    it('drops the text for any other category, and on moving to one', async () => {
+      const typed = (await (await post(incidentBody(world, { categoryText: 'Ignored' }))).json()) as IncidentDto
+      expect(typed.categoryText).toBeNull()
+      const created = (await (await post(incidentBody(world, { categoryId: other(), categoryText: 'Fallen tree' }))).json()) as IncidentDto
+      const moved = await call(app, 'PATCH', `/api/incidents/${created.id}`, { cookie: supCookie, body: incidentBody(world, { occurredAt: created.occurredAt, categoryText: 'Fallen tree' }) })
+      expect(((await moved.json()) as IncidentDto).categoryText).toBeNull()
+    })
+
+    it('still lets older "Other" incidents be edited without the text', async () => {
+      const old = await insertIncident(world, { occurredAt: ago(HOUR), categoryValue: 'Other' })
+      const res = await call(app, 'PATCH', `/api/incidents/${old.id}`, { cookie: supCookie, body: incidentBody(world, { occurredAt: old.occurredAt.toISOString(), categoryId: other(), status: 'MONITORING' }) })
+      expect(res.status).toBe(200)
+    })
   })
 
   it('records mobile field changes in the timeline', async () => {

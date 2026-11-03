@@ -87,7 +87,7 @@ export function renderReportPdf(report: ShiftReportDto, opts: { draft: boolean; 
   doc.font('Helvetica-Bold').fontSize(16).fillColor(INK).text('Control Room Shift Report', M + 60, M + 2)
   doc.font('Helvetica').fontSize(10).fillColor(MUTED)
     .text(`${c.shift.shiftName} shift · ${fmtShiftDate(c.shift.shiftDate)} · ${fmtTime(c.shift.startsAt, tz)}–${fmtTime(c.shift.endsAt, tz)}`, M + 60, doc.y + 2)
-  doc.text(`Shift Supervisor: ${c.shift.supervisor.fullName} · Control Room Officer: ${c.shift.officer.fullName}`, M + 60)
+  doc.text(`Officer on duty: ${c.shift.supervisor.fullName}${c.shift.officer ? ` · Also on shift: ${c.shift.officer.fullName}` : ''}`, M + 60)
   doc.y = M + 52
   doc.moveTo(M, doc.y).lineTo(M + width, doc.y).strokeColor('#f5c400').lineWidth(2).stroke()
   doc.moveDown(0.6)
@@ -117,7 +117,7 @@ export function renderReportPdf(report: ShiftReportDto, opts: { draft: boolean; 
   heading(doc, 'All incidents')
   table(doc, cols, c.incidents, 'No incidents were logged on this shift.')
 
-  heading(doc, "Supervisor's report")
+  heading(doc, "Officer's report")
   for (const k of REPORT_TEXT_FIELDS) {
     ensureSpace(doc, 30)
     doc.font('Helvetica-Bold').fontSize(9.5).fillColor(INK).text(REPORT_TEXT_LABELS[k], M, doc.y)

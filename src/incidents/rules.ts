@@ -22,7 +22,7 @@ export function computeIncidentFields(
 
 export const isResolvedStatus = (s: IncidentStatus) => (RESOLVED_STATUSES as readonly string[]).includes(s)
 
-export interface ShiftPeople { id: number; supervisorId: number; officerId: number }
+export interface ShiftPeople { id: number; supervisorId: number; officerId: number | null }
 
 /** Officers: only shifts they are rostered on that are current or immediately previous. Admin: always. Others: never. */
 export function canEditIncident(actor: { id: number; role: string }, shift: ShiftPeople, editableShiftIds: readonly number[]): boolean {
@@ -37,6 +37,7 @@ export interface IncidentSnapshot {
   locationId: number | null
   locationDetail: string | null
   categoryId: number
+  categoryText: string | null
   severity: string
   description: string
   immediateAction: string | null
@@ -60,6 +61,7 @@ const FIELD_LABELS: Record<keyof IncidentSnapshot, string> = {
   locationId: 'location',
   locationDetail: 'location detail',
   categoryId: 'category',
+  categoryText: 'category',
   severity: 'severity',
   description: 'description',
   immediateAction: 'immediate action',
