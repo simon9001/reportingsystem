@@ -1,4 +1,5 @@
 import { fromDateString, localDateString, SEVERITY_RANK, toDateString, type IncidentDto, type IncidentInputParsed, type LookupType, type PreviousShiftDto } from '@sr/shared'
+import { removeStoredFile } from '../attachments/storage'
 import { writeAudit } from '../audit/audit'
 import { publish } from '../events/bus'
 import { env } from '../lib/env'
@@ -194,7 +195,8 @@ export async function getIncident(idOrRef: string, actor: SessionUser, now = new
   const row = await loadDetail(numeric ? { id: Number(idOrRef) } : { ref: idOrRef.toUpperCase() })
   if (!row) throw new AppError('NOT_FOUND', 'Incident not found')
   const canEdit = canEditIncident(actor, row.shift, await editableShiftIds(now))
-  return toIncidentDto(row, { canEdit, actor, timeZone: env.SR_APP_TIMEZONE })
+  const canDelete = canEdit && !(await isShiftReportSubmitted(row.shiftId))
+  return toIncidentDto(row, { canEdit, canDelete, actor, timeZone: env.SR_APP_TIMEZONE })
 }
 
 export async function createIncident(actor: SessionUser, input: IncidentInputParsed, ip: string | null, now = new Date()): Promise<IncidentDto> {
@@ -252,4 +254,24 @@ export async function updateIncident(actor: SessionUser, id: number, input: Inci
   })
   publish('incidents', 'audit')
   return getIncident(String(id), actor, now)
+}
+
+/** The frozen report of a submitted shift lists its incidents, so they cannot be deleted, even by an administrator. The audit row keeps a full copy. */
+export async function deleteIncident(actor: SessionUser, id: number, ip: string | null, now = new Date()): Promise<void> {
+  assertEditorRole(actor)
+  const existing = await loadDetail({ id })
+  if (!existing) throw new AppError('NOT_FOUND', 'Incident not found')
+  if (!canEditIncident(actor, existing.shift, await editableShiftIds(now))) throw await editRefused(existing.shiftId, 'You can no longer delete this incident')
+  if (await isShiftReportSubmitted(existing.shiftId)) throw new AppError('CONFLICT', "This shift's report has been submitted; its incidents can no longer be deleted.")
+  await prisma.$transaction(async (tx) => {
+    await tx.incident.delete({ where: { id } }) // attachments and timeline events cascade
+    await writeAudit(tx, {
+      userId: actor.id, entity: 'Incident', entityId: id, action: 'DELETE',
+      before: { ref: existing.ref, side: existing.side, shiftId: existing.shiftId, ...snapshotOf(existing), attachments: existing.attachments.map((a) => a.originalName) }, ip,
+    })
+  })
+  // The record is gone; a file that cannot be removed must not turn that into an error.
+  const removed = await Promise.allSettled(existing.attachments.map((a) => removeStoredFile(a.storedName)))
+  for (const r of removed) if (r.status === 'rejected') console.error('[incident delete]', r.reason)
+  publish('incidents', 'audit')
 }

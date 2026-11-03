@@ -8,7 +8,7 @@ import { clientIp } from '../lib/http'
 import { parseBody, parseId, parseQuery } from '../lib/validate'
 import type { AppEnv } from '../types'
 import {
-  createLookup, createVehicle, listEscalationRules, listLookups, listShiftDefinitions, listVehicles,
+  createLookup, createVehicle, deleteVehicle, listEscalationRules, listLookups, listShiftDefinitions, listVehicles,
   updateEscalationRules, updateLookup, updateShiftDefinitions, updateVehicle,
 } from './service'
 import { getSettings, updateSettings } from './settings'
@@ -42,4 +42,8 @@ configRoutes.post('/vehicles', admin, async (c) =>
 configRoutes.patch('/vehicles/:id', admin, async (c) => {
   const id = parseId(c)
   return c.json(await updateVehicle(currentUser(c), id, await parseBody(c, updateVehicleSchema), clientIp(c)))
+})
+configRoutes.delete('/vehicles/:id', admin, async (c) => {
+  await deleteVehicle(currentUser(c), parseId(c), clientIp(c))
+  return c.body(null, 204)
 })

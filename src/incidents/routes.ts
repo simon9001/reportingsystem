@@ -8,7 +8,7 @@ import { parseBody, parseId, parseQuery } from '../lib/validate'
 import type { AppEnv } from '../types'
 import { buildIncidentWorkbook } from './export'
 import { listIncidents } from './query'
-import { createIncident, getIncident, updateIncident } from './service'
+import { createIncident, deleteIncident, getIncident, updateIncident } from './service'
 
 export const incidentsRoutes = new Hono<AppEnv>()
 
@@ -36,6 +36,11 @@ incidentsRoutes.patch('/:id', requireAuth(), async (c) => {
   const id = parseId(c)
   const input = await parseBody(c, incidentInputSchema)
   return c.json(await updateIncident(currentUser(c), id, input, clientIp(c)))
+})
+
+incidentsRoutes.delete('/:id', requireAuth(), async (c) => {
+  await deleteIncident(currentUser(c), parseId(c), clientIp(c))
+  return c.body(null, 204)
 })
 
 incidentsRoutes.post('/:id/attachments', requireAuth(), async (c) => {

@@ -150,4 +150,17 @@ export async function updateVehicle(actor: SessionUser, id: number, input: Updat
     if (isUniqueViolation(err)) throw vehicleTaken()
     throw err
   }
+}
+
+/** Past incidents show the unit ID, so a vehicle that has any stays; deactivating it takes it out of the dropdowns. */
+export async function deleteVehicle(actor: SessionUser, id: number, ip: string | null): Promise<void> {
+  const existing = await prisma.vehicle.findUnique({ where: { id } })
+  if (!existing) throw new AppError('NOT_FOUND', 'Vehicle not found')
+  await prisma.$transaction(async (tx) => {
+    const incidents = await tx.incident.count({ where: { vehicleId: id } })
+    if (incidents > 0) throw new AppError('CONFLICT', `${existing.unitId} is on ${incidents} incident(s), so it cannot be deleted. Deactivate it instead.`)
+    await tx.vehicle.delete({ where: { id } })
+    await writeAudit(tx, { userId: actor.id, entity: 'Vehicle', entityId: id, action: 'DELETE', before: toVehicleDto(existing), ip })
+  })
+  publish('config', 'audit')
 }

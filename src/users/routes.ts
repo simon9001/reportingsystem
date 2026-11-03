@@ -4,7 +4,7 @@ import { currentUser, requireRole } from '../auth/middleware'
 import { clientIp } from '../lib/http'
 import { parseBody, parseId, parseQuery } from '../lib/validate'
 import type { AppEnv } from '../types'
-import { createUser, listUsers, resetUserPassword, updateUser } from './service'
+import { createUser, deleteUser, listUsers, resetUserPassword, updateUser } from './service'
 
 export const usersRoutes = new Hono<AppEnv>()
 
@@ -21,6 +21,11 @@ usersRoutes.patch('/:id', requireRole('ADMIN'), async (c) => {
   const id = parseId(c)
   const input = await parseBody(c, updateUserSchema)
   return c.json(await updateUser(currentUser(c), id, input, clientIp(c)))
+})
+
+usersRoutes.delete('/:id', requireRole('ADMIN'), async (c) => {
+  await deleteUser(currentUser(c), parseId(c), clientIp(c))
+  return c.body(null, 204)
 })
 
 usersRoutes.post('/:id/reset-password', requireRole('ADMIN'), async (c) => {

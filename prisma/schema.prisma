@@ -17,6 +17,8 @@ model User {
   isActive            Boolean              @default(true)
   mustChangePassword  Boolean              @default(true)
   lastLoginAt         DateTime?
+  /// Deleted users keep their row so their name stays on past shifts, incidents and audit entries.
+  deletedAt           DateTime?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   sessions            Session[]

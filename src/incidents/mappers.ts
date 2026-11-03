@@ -54,7 +54,7 @@ export function toIncidentListItem(r: IncidentListRow): IncidentListItemDto {
   }
 }
 
-export function toIncidentDto(r: IncidentDetailRow, ctx: { canEdit: boolean; actor: { id: number; role: string }; timeZone: string }): IncidentDto {
+export function toIncidentDto(r: IncidentDetailRow, ctx: { canEdit: boolean; canDelete: boolean; actor: { id: number; role: string }; timeZone: string }): IncidentDto {
   return {
     ...toIncidentListItem(r),
     description: r.description,
@@ -70,6 +70,7 @@ export function toIncidentDto(r: IncidentDetailRow, ctx: { canEdit: boolean; act
     officerName: r.shift.officer.fullName,
     afterMidnight: localDateString(r.occurredAt, ctx.timeZone) !== toDateString(r.shift.shiftDate),
     canEdit: ctx.canEdit,
+    canDelete: ctx.canDelete,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
     attachments: r.attachments.map((a) => ({

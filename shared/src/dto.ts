@@ -123,6 +123,8 @@ export interface IncidentDto extends IncidentListItemDto {
   /** The incident happened on a later calendar day than the shift started (Night shift after midnight). */
   afterMidnight: boolean
   canEdit: boolean
+  /** Same people as canEdit, but never once the shift's report has been submitted. */
+  canDelete: boolean
   createdAt: string
   updatedAt: string
   attachments: IncidentAttachmentDto[]

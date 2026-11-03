@@ -98,7 +98,7 @@ export async function runEmailJobs(now = new Date(), mailer: Mailer | null = get
   return result
 }
 
-/** Queues the overdue emails (DD with draft PDF, supervisor reminder) once per shift, for deadlines in the last 24 hours. */
+/** Queues the overdue emails (DD with draft PDF, supervisor reminder) once per shift that has incidents, for deadlines in the last 24 hours. */
 export async function queueOverdueReports(now = new Date()): Promise<number> {
   const { reportDeadlineMinutes, ddEmails } = await getSettings()
   const deadlineMs = reportDeadlineMinutes * 60_000
@@ -106,6 +106,7 @@ export async function queueOverdueReports(now = new Date()): Promise<number> {
     where: {
       endsAt: { lte: new Date(now.getTime() - deadlineMs), gt: new Date(now.getTime() - deadlineMs - 24 * 3_600_000) },
       OR: [{ report: { is: null } }, { report: { is: { status: 'DRAFT' } } }],
+      incidents: { some: {} }, // a quiet shift gets no reminder; a late entry within the 24 hours still triggers one
     },
     include: { supervisor: true },
   })
@@ -116,7 +117,7 @@ export async function queueOverdueReports(now = new Date()): Promise<number> {
       for (const to of ddEmails) {
         if (await queueEmailOnce(prisma, { type: 'REPORT_OVERDUE_DD', to, reportId, shiftId: s.id, dedupeKey: `OVERDUE_DD:${s.id}:${to.toLowerCase()}` })) queued += 1
       }
-      if (await queueEmailOnce(prisma, { type: 'REPORT_OVERDUE_SUPERVISOR', to: s.supervisor.email, reportId, shiftId: s.id, dedupeKey: `OVERDUE_SUP:${s.id}` })) queued += 1
+      if (!s.supervisor.deletedAt && await queueEmailOnce(prisma, { type: 'REPORT_OVERDUE_SUPERVISOR', to: s.supervisor.email, reportId, shiftId: s.id, dedupeKey: `OVERDUE_SUP:${s.id}` })) queued += 1
     } catch (err) {
       console.error('[overdue check] shift', s.id, err) // one bad shift must not stop the others
     }

@@ -6,7 +6,7 @@ import { nextAttemptDelayMinutes, queueOverdueReports, runEmailJobs } from '../s
 import { prisma } from '../src/lib/prisma'
 import { resetDb } from './db'
 import { call, login, loginAs } from './factories'
-import { resetIncidentSeq, setupIncidentWorld } from './incidentFixtures'
+import { insertIncident, resetIncidentSeq, setupIncidentWorld } from './incidentFixtures'
 
 const app = createApp()
 const sent: MailMessage[] = []
@@ -35,6 +35,9 @@ async function submitPrevious(): Promise<number> {
   expect((await call(app, 'POST', `/api/shifts/${world.previous.id}/report/submit`, { cookie })).status).toBe(200)
   return id
 }
+
+/** Overdue emails are only for shifts with incidents. */
+const addIncident = (shift: { id: number; startsAt: Date }) => insertIncident(world, { occurredAt: new Date(shift.startsAt.getTime() + 60_000).toISOString(), shiftId: shift.id })
 
 describe('email worker', () => {
   it('has the agreed backoff', () => {
@@ -84,6 +87,8 @@ describe('email worker', () => {
 
   it('queues overdue emails once, only for deadlines in the last 24 hours', async () => {
     // previous: ended 2h ago (overdue); older: ended 14h ago (overdue, within 24h); current: still running.
+    await addIncident(world.previous)
+    await addIncident(world.older)
     const n1 = await queueOverdueReports(new Date())
     const n2 = await queueOverdueReports(new Date())
     expect(n2).toBe(0)
@@ -97,7 +102,25 @@ describe('email worker', () => {
     expect(await queueOverdueReports(new Date(Date.now() + 32 * 3_600_000))).toBe(0)
   })
 
+  it('sends no overdue emails for a shift with no incidents, until a late entry is logged', async () => {
+    expect(await queueOverdueReports(new Date())).toBe(0)
+    expect(await prisma.emailJob.count()).toBe(0)
+    await addIncident(world.previous)
+    expect(await queueOverdueReports(new Date())).toBe(2) // Deputy Director and supervisor, for that shift only
+    const jobs = await prisma.emailJob.findMany()
+    expect(new Set(jobs.map((j) => j.shiftId))).toEqual(new Set([world.previous.id]))
+  })
+
+  it('does not remind a deleted supervisor', async () => {
+    await addIncident(world.previous)
+    await prisma.user.update({ where: { id: world.officer.id }, data: { deletedAt: new Date() } })
+    await queueOverdueReports(new Date())
+    expect((await prisma.emailJob.findMany()).map((j) => j.type)).toEqual(['REPORT_OVERDUE_DD'])
+  })
+
   it('skips overdue reminders once the report is submitted, and will not retry them', async () => {
+    await addIncident(world.previous)
+    await addIncident(world.older)
     await queueOverdueReports(new Date())
     const reportId = await submitPrevious()
     await prisma.emailJob.updateMany({ where: { shiftId: world.older.id }, data: { status: 'FAILED' } }) // keep the run to the previous shift

@@ -68,7 +68,7 @@ Notes:
 
 ## Email and shift reports
 
-At the end of each shift the Shift Supervisor submits the shift report. The report is frozen, a PDF is stored, and every address in **Settings → System settings → Deputy Director emails** gets an email with the PDF attached. If a report is not submitted within the report deadline (default 30 minutes after the shift ends), the Deputy Director gets an overdue email with the draft PDF and the supervisor gets a reminder (once each).
+At the end of each shift the Shift Supervisor submits the shift report. The report is frozen, a PDF is stored, and every address in **Settings → System settings → Deputy Director emails** gets an email with the PDF attached. If a shift has at least one incident and its report is not submitted within the report deadline (default 30 minutes after the shift ends), the Deputy Director gets an overdue email with the draft PDF and the supervisor gets a reminder (once each). A shift with no incidents gets neither.
 
 Configure SMTP through environment variables (on Render, in the service's Environment tab). All are optional: without `SR_SMTP_HOST` emails are logged as skipped.
 

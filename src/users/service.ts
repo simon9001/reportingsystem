@@ -12,7 +12,7 @@ const emailTaken = () => new AppError('CONFLICT', 'A user with this email alread
 
 export async function listUsers(q: { role?: Role; active?: 'true' | 'false' }): Promise<UserDto[]> {
   const users = await prisma.user.findMany({
-    where: { role: q.role, isActive: q.active === undefined ? undefined : q.active === 'true' },
+    where: { deletedAt: null, role: q.role, isActive: q.active === undefined ? undefined : q.active === 'true' },
     orderBy: { fullName: 'asc' },
   })
   return users.map(toUserDto)
@@ -37,7 +37,7 @@ export async function createUser(actor: SessionUser, input: z.output<typeof crea
 }
 
 export async function updateUser(actor: SessionUser, id: number, input: z.output<typeof updateUserSchema>, ip: string | null): Promise<UpdateUserResult> {
-  const existing = await prisma.user.findUnique({ where: { id } })
+  const existing = await prisma.user.findFirst({ where: { id, deletedAt: null } })
   if (!existing) throw new AppError('NOT_FOUND', 'User not found')
   if (id === actor.id && (input.isActive === false || (input.role !== undefined && input.role !== existing.role))) {
     throw new AppError('CONFLICT', 'You cannot deactivate yourself or change your own role')
@@ -63,13 +63,31 @@ export async function updateUser(actor: SessionUser, id: number, input: z.output
 }
 
 export async function resetUserPassword(actor: SessionUser, id: number, password: string, ip: string | null): Promise<void> {
-  const existing = await prisma.user.findUnique({ where: { id } })
+  const existing = await prisma.user.findFirst({ where: { id, deletedAt: null } })
   if (!existing) throw new AppError('NOT_FOUND', 'User not found')
   const passwordHash = await hashPassword(password)
   await prisma.$transaction(async (tx) => {
     await tx.user.update({ where: { id }, data: { passwordHash, mustChangePassword: true } })
     await tx.session.deleteMany({ where: { userId: id } })
     await writeAudit(tx, { userId: actor.id, entity: 'User', entityId: id, action: 'UPDATE', after: { passwordReset: true }, ip })
+  })
+  publish('users', 'audit')
+}
+
+/**
+ * Removes the account: it disappears from every list and can never sign in again, and its email can be used for a new
+ * user. The row stays (with the name) because past shifts, incidents and audit entries point at it.
+ */
+export async function deleteUser(actor: SessionUser, id: number, ip: string | null, now = new Date()): Promise<void> {
+  if (id === actor.id) throw new AppError('CONFLICT', 'You cannot delete your own account')
+  const existing = await prisma.user.findFirst({ where: { id, deletedAt: null } })
+  if (!existing) throw new AppError('NOT_FOUND', 'User not found')
+  const shifts = await prisma.shift.count({ where: { endsAt: { gt: now }, OR: [{ supervisorId: id }, { officerId: id }] } })
+  if (shifts > 0) throw new AppError('CONFLICT', `${existing.fullName} is on ${shifts} current or upcoming shift(s). Reassign them on the Roster page first.`)
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id }, data: { deletedAt: now, isActive: false, passwordHash: '', email: `deleted-${id}@deleted.invalid` } })
+    await tx.session.deleteMany({ where: { userId: id } })
+    await writeAudit(tx, { userId: actor.id, entity: 'User', entityId: id, action: 'DELETE', before: toUserDto(existing), ip })
   })
   publish('users', 'audit')
 }

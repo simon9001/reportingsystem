@@ -167,6 +167,38 @@ describe('incident register', () => {
       expect(got.canEdit).toBe(true)
     })
 
+    it('lets the people on the shift edit its incident', async () => {
+      const inc = await create(supCookie)
+      for (const cookie of [supCookie, await login(app, world.officer.email)]) {
+        const res = await call(app, 'PATCH', `/api/incidents/${inc.id}`, { cookie, body: incidentBody(world, { description: 'Edited on shift', status: 'IN_PROGRESS' }) })
+        expect(res.status).toBe(200)
+        expect((await res.json()) as IncidentDto).toMatchObject({ description: 'Edited on shift', status: 'IN_PROGRESS', canEdit: true, canDelete: true })
+      }
+    })
+
+    it('deletes an incident with its timeline and keeps a copy in the audit log', async () => {
+      const inc = await create(supCookie)
+      const other = await loginAs(app, 'DEPUTY_DIRECTOR')
+      expect((await call(app, 'DELETE', `/api/incidents/${inc.id}`, { cookie: other.cookie })).status).toBe(403)
+      expect((await call(app, 'DELETE', `/api/incidents/${inc.id}`, { cookie: supCookie })).status).toBe(204)
+      expect(await prisma.incident.count()).toBe(0)
+      expect(await prisma.incidentEvent.count()).toBe(0)
+      const audit = await prisma.auditLog.findFirstOrThrow({ where: { entity: 'Incident', action: 'DELETE' } })
+      expect(audit.beforeJson).toContain(inc.ref)
+      expect((await call(app, 'DELETE', `/api/incidents/${inc.id}`, { cookie: supCookie })).status).toBe(404)
+    })
+
+    it('will not delete an incident once the report is submitted, even for an admin', async () => {
+      const inc = await create(supCookie)
+      await prisma.shiftReport.create({ data: { shiftId: inc.shiftId, status: 'SUBMITTED', submittedAt: new Date() } })
+      expect((await call(app, 'DELETE', `/api/incidents/${inc.id}`, { cookie: supCookie })).status).toBe(403)
+      const admin = await loginAs(app, 'ADMIN')
+      const dto = (await (await call(app, 'GET', `/api/incidents/${inc.id}`, { cookie: admin.cookie })).json()) as IncidentDto
+      expect(dto).toMatchObject({ canEdit: true, canDelete: false })
+      expect((await call(app, 'DELETE', `/api/incidents/${inc.id}`, { cookie: admin.cookie })).status).toBe(409)
+      expect(await prisma.incident.count()).toBe(1)
+    })
+
     it('gates read-only roles before validation and bounds ids', async () => {
       const dd = await loginAs(app, 'DEPUTY_DIRECTOR')
       const res = await call(app, 'POST', '/api/incidents', { cookie: dd.cookie, body: incidentBody(world, { occurredAt: new Date(Date.now() + HOUR).toISOString() }) })

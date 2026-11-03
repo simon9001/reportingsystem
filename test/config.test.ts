@@ -93,6 +93,27 @@ describe('config', () => {
     expect((await call(app, 'POST', '/api/config/vehicles', { cookie: admin.cookie, body: { unitId: 'KDG 143S' } })).status).toBe(409)
   })
 
+  it('edits a vehicle and keeps unit IDs unique', async () => {
+    const admin = await loginAs(app, 'ADMIN')
+    const a = await prisma.vehicle.create({ data: { unitId: 'KDG 143S' } })
+    await prisma.vehicle.create({ data: { unitId: 'KCB 220T' } })
+    const res = await call(app, 'PATCH', `/api/config/vehicles/${a.id}`, { cookie: admin.cookie, body: { unitId: 'kdg 144s', description: 'Replaced plate' } })
+    expect(res.status).toBe(200)
+    expect((await res.json()) as VehicleDto).toMatchObject({ unitId: 'KDG 144S', description: 'Replaced plate' })
+    expect((await call(app, 'PATCH', `/api/config/vehicles/${a.id}`, { cookie: admin.cookie, body: { unitId: 'KCB 220T' } })).status).toBe(409)
+  })
+
+  it('deletes a vehicle with no incidents, audited, for admins only', async () => {
+    const admin = await loginAs(app, 'ADMIN')
+    const dd = await loginAs(app, 'DEPUTY_DIRECTOR')
+    const v = await prisma.vehicle.create({ data: { unitId: 'KDG 143S' } })
+    expect((await call(app, 'DELETE', `/api/config/vehicles/${v.id}`, { cookie: dd.cookie })).status).toBe(403)
+    expect((await call(app, 'DELETE', `/api/config/vehicles/${v.id}`, { cookie: admin.cookie })).status).toBe(204)
+    expect(await prisma.vehicle.count()).toBe(0)
+    expect(await prisma.auditLog.count({ where: { entity: 'Vehicle', action: 'DELETE' } })).toBe(1)
+    expect((await call(app, 'DELETE', `/api/config/vehicles/${v.id}`, { cookie: admin.cookie })).status).toBe(404)
+  })
+
   it('audits configuration changes', async () => {
     const admin = await loginAs(app, 'ADMIN')
     await call(app, 'PUT', '/api/config/settings', { cookie: admin.cookie, body: { reportDeadlineMinutes: 40 } })
