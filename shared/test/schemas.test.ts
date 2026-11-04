@@ -31,10 +31,10 @@ describe('shared schemas', () => {
     expect(r.success).toBe(false)
   })
 
-  it('rejects a roster entry with the same person twice', () => {
-    const r = rosterEntrySchema.safeParse({ shiftDate: '2026-09-30', shiftCode: 'DAY', supervisorId: 1, officerId: 1 })
-    expect(r.success).toBe(false)
-    if (!r.success) expect(r.error.issues[0]?.path).toEqual(['officerId'])
+  it('takes one officer on a roster entry and drops any second person', () => {
+    expect(rosterEntrySchema.safeParse({ shiftDate: '2026-09-30', shiftCode: 'DAY' }).success).toBe(false)
+    const r = rosterEntrySchema.parse({ shiftDate: '2026-09-30', shiftCode: 'DAY', supervisorId: 1, officerId: 2 })
+    expect(r).toEqual({ shiftDate: '2026-09-30', shiftCode: 'DAY', supervisorId: 1 })
   })
 
   it('rejects the same date and shift twice in one save', () => {

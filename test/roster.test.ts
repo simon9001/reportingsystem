@@ -157,7 +157,7 @@ describe('roster', () => {
     const asSimon = (await (await call(app, 'GET', '/api/roster/current', { cookie: await login(app, simon.email) })).json()) as MeResponse['currentShift']
     const asDd = (await (await call(app, 'GET', '/api/auth/me', { cookie: dd.cookie })).json()) as MeResponse
     expect(asAntony.currentShift?.myRole).toBe('SUPERVISOR')
-    expect(asSimon?.myRole).toBe('OFFICER')
+    expect(asSimon?.myRole).toBeNull() // not on this shift: it has one officer
     expect(asDd.currentShift?.shift?.supervisor.fullName).toBe('Antony Ochieng')
     expect(asDd.currentShift?.myRole).toBeNull()
   })
